@@ -40,6 +40,7 @@ const KNOWN_ADDRESSES: Record<string, string> = rawKnownAddresses as Record<
   string
 >;
 
+
 const fetchHelius = async (method: HeliusMethod, params: any) => {
   try {
     const response = await fetch(RPC_URL, {

@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -226,6 +227,16 @@ model SubscriptionPayment {
   @@map("subscription_payments")
 }
 
+model TokenInfo {
+  id           String      @id @default(cuid())
+  contractAddress String    @unique
+  marketCap    Float
+  holderCount  Int
+  topHolders   Json
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
 enum BillingCycle {
   MONTHLY
   YEARLY
@@ -235,4 +246,15 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   PENDING
+}
+
+model EthereumWallet {
+  id               String   @id @default(cuid())
+  ownerId          String
+  name             String
+  publicKey        String   @unique
+  encryptedPrivateKey String
+  chain            String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

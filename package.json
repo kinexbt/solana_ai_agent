@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "vercel-build": "NODE_OPTIONS=--max_old_space_size=2048 pnpm npx prisma generate && next build",
-    "dev": "NODE_NO_WARNINGS=1 next dev --turbopack",
+    "dev": "set NODE_NO_WARNINGS=1 && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -53,6 +53,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "date-fns": "^4.1.0",
+    "ethers": "^6.13.5",
     "framer-motion": "^11.18.1",
     "helius-sdk": "^1.4.1",
     "keyv": "4.5.4",
