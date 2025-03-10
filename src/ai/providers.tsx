@@ -1,19 +1,20 @@
 import { ReactNode } from 'react';
 
-
-
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 
 import { Card } from '@/components/ui/card';
 
+import { bscTools } from './bsc/bsc';
+import { coinGeckoTools } from './bsc/coinGecko';
+import { bscDexscreenerTools } from './bsc/dexscreenerBsc';
 import { actionTools } from './generic/action';
 import { jinaTools } from './generic/jina';
 import { telegramTools } from './generic/telegram';
 import { utilTools } from './generic/util';
-import { bundleTools } from './solana/bundle';
 import { birdeyeTools } from './solana/birdeye';
+import { bundleTools } from './solana/bundle';
 import { chartTools } from './solana/chart';
 import { cookietools } from './solana/cookie';
 import { definedTools } from './solana/defined-fi';
@@ -59,9 +60,9 @@ const openAiModel = openai(process.env.OPENAI_MODEL_NAME || 'gpt-4o');
 
 export const defaultSystemPrompt = `
 Your name is Neur (Agent).
-You are a specialized AI assistant for Solana blockchain and DeFi operations, designed to provide secure, accurate, and user-friendly assistance.
-You may use your built in model to perform general analysis and provide responses to user queries.
-If you need to perform specific tasks you don't have built in training for, you can use the available tools.
+You are a specialized AI assistant for Solana blockchain, Binance Smart Chain (BSC), and DeFi operations, designed to provide secure, accurate, and user-friendly assistance.
+You may use your built-in model to perform general analysis and provide responses to user queries related to Solana, BSC, and DeFi.
+If you need to perform specific tasks you don't have built-in training for, you can use the available tools.
 
 Critical Rules:
 - If the previous tool result contains the key-value pair 'noFollowUp: true':
@@ -106,7 +107,10 @@ Response Formatting:
 
 Common knowledge:
 - { token: NEUR, description: The native token of Neur, twitter: @neur_sh, website: https://neur.sh/, address: 3N2ETvNpPNAxhcaXgkhKoY1yDnQfs41Wnxsx5qNJpump }
-- { user: toly, description: Co-Founder of Solana Labs, twitter: @aeyakovenko, wallet: toly.sol }\
+- { user: toly, description: Co-Founder of Solana Labs, twitter: @aeyakovenko, wallet: toly.sol }
+- { user: gupta, description: Co-Founder of BSC Labs, twitter: @praveenguptaind, website: https://www.storyboard18.com wallet: gupta.bsc}\
+
+
 
 Realtime knowledge:
 - { approximateCurrentTime: ${new Date().toISOString()}}
@@ -166,6 +170,9 @@ export const defaultTools: Record<string, ToolConfig> = {
   ...bundleTools,
   ...birdeyeTools,
   ...cookietools,
+  ...bscTools,
+  ...coinGeckoTools,
+  ...bscDexscreenerTools,
 };
 
 export function filterTools(
@@ -213,14 +220,14 @@ export const toolsets: Record<
       'Web scraping and content extraction tools for reading web pages and extracting content.',
   },
   defiTools: {
-    tools: ['solanaTools', 'dexscreenerTools'],
+    tools: ['solanaTools', 'dexscreenerTools', 'bscDexscreenerTools'],
     description:
-      'Tools for interacting with DeFi protocols on Solana, including swaps, market data, token information and details.',
+      'Tools for interacting with DeFi protocols on Solana and BSC, including swaps, market data, token information and details.',
   },
   traderTools: {
-    tools: ['birdeyeTools'],
+    tools: ['birdeyeTools, coinGecko'],
     description:
-      'Tools for analyzing and tracking traders and trades on Solana DEXes.',
+      'Tools for analyzing and tracking traders and trades on Solana and BSC DEXes.',
   },
   financeTools: {
     tools: ['definedTools'],
@@ -259,10 +266,10 @@ export const toolsets: Record<
 };
 
 export const orchestrationPrompt = `
-You are Neur, an AI assistant specialized in Solana blockchain and DeFi operations.
+You are Neur, an AI assistant specialized in Solana blockchain, Binance Smart BlockChain and DeFi operations.
 
 Your Task:
-Analyze the user's message and return the appropriate tools as a **JSON array of strings**.  
+Analyze the user's message and return the appropriate tools as a **JSON array of strings**.
 
 Rules:
 - Only include the askForConfirmation tool if the user's message requires a transaction signature or if they are creating an action.

@@ -100,7 +100,6 @@ const ConversationMenuItem = ({
       setIsLoading(false);
     }
   };
-
   const handleDelete = async () => {
     try {
       // Show loading toast

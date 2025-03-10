@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { PrismaClient } from '@prisma/client';
 import fetch from 'node-fetch';
+import { unknown } from 'zod';
 
 const prisma = new PrismaClient();
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
@@ -12,13 +13,13 @@ async function fetchTokenInfo(contractAddress: string) {
     const [topHolders, tokenSupply, holderCount] = await Promise.all([
       fetch(
         `${ETHERSCAN_BASE_URL}?chainid=56&module=token&action=tokenholderlist&contractAddress=${contractAddress}&page=1&offset=1000&apikey=${ETHERSCAN_API_KEY}`,
-      ).then((res) => res.json()),
+      ).then((res) => res.json() as any),
       fetch(
         `${ETHERSCAN_BASE_URL}?chainid=56&module=stats&action=tokensupply&contractAddress=${contractAddress}&apikey=${ETHERSCAN_API_KEY}`,
-      ).then((res) => res.json()),
+      ).then((res) => res.json() as any),
       fetch(
         `${ETHERSCAN_BASE_URL}?chainid=56&module=token&action=tokenholdercount&contractAddress=${contractAddress}&apikey=${ETHERSCAN_API_KEY}`,
-      ).then((res) => res.json()),
+      ).then((res) => res.json() as any),
     ]);
 
     if (!topHolders.result || !tokenSupply.result || !holderCount.result) {
@@ -26,7 +27,7 @@ async function fetchTokenInfo(contractAddress: string) {
     }
 
     const sortedTopHolders = topHolders.result
-      .sort((a, b) => Number(b.balance) - Number(a.balance))
+      .sort((a: any, b: any) => Number(b.balance) - Number(a.balance))
       .slice(0, 10);
 
     return {

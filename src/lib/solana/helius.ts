@@ -1,16 +1,11 @@
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
-
-
 import { chunkArray } from '@/lib/utils';
 import rawKnownAddresses from '@/lib/utils/known-addresses.json';
 import { FungibleToken } from '@/types/helius/fungibleToken';
 import { NonFungibleToken } from '@/types/helius/nonFungibleToken';
 
-
-
 import { RPC_URL } from '../constants';
-
 
 export interface Holder {
   owner: string;
@@ -39,7 +34,6 @@ const KNOWN_ADDRESSES: Record<string, string> = rawKnownAddresses as Record<
   string,
   string
 >;
-
 
 const fetchHelius = async (method: HeliusMethod, params: any) => {
   try {
