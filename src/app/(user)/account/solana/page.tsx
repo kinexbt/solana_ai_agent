@@ -54,6 +54,7 @@ import {
 import { type UserUpdateData, updateUser } from '@/server/actions/user';
 import { EmbeddedWallet } from '@/types/db';
 
+import { ChooseAccount } from '../ChooseAccount';
 import { LoadingStateSkeleton } from './loading-skeleton';
 
 export default function AccountContent() {
@@ -264,17 +265,21 @@ export default function AccountContent() {
   };
 
   return (
-    <div className="flex-2 flex">
+    <div className="flex flex-1 flex-col py-4">
+      <div className="flex-3 flex h-8 items-center border-b border-gray-300 px-8 pb-2">
+        <h1 className="text-lg font-medium">Your Accounts</h1>
+        <ChooseAccount />
+      </div>
       <div className="flex flex-1 flex-col py-4">
         <div className="flex-2 flex justify-between">
-          <div className="flex-start flex border-b border-gray-300 px-8 pb-2">
+          <div className="flex-start flex px-8 pb-2">
             <Image
               src="/solana-chain-avatar.png"
               alt="Solana chain avatar"
               width={24}
               height={8}
             />
-            <h2 className="px-2 font-bold">Solana Chain Account</h2>
+            <h2 className="px-2 font-bold">Solana Account</h2>
           </div>
         </div>
         <div className="w-full px-8">
@@ -685,14 +690,37 @@ export default function AccountContent() {
               <h2 className="text-sm font-medium text-muted-foreground">
                 Legacy Embedded Wallet
               </h2>
-              {legacyWallets.map((wallet: EmbeddedWallet) => (
-                <WalletCard
-                  key={wallet.id}
-                  wallet={wallet}
-                  mutateWallets={mutateWallets}
-                  allWalletAddresses={allWalletAddresses}
-                />
-              ))}
+              {legacyWallets
+                .filter((wallet: EmbeddedWallet) => wallet.chain === 'SOLANA')
+                .map((wallet: EmbeddedWallet) => (
+                  <WalletCard
+                    key={wallet.id}
+                    wallet={wallet}
+                    mutateWallets={mutateWallets}
+                    allWalletAddresses={allWalletAddresses}
+                  />
+                ))}
+              {legacyWallets.filter(
+                (wallet: EmbeddedWallet) => wallet.chain === 'SOLANA',
+              ).length === 0 && (
+                <Card className="bg-sidebar">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div>
+                          <p className="text-sm font-medium">
+                            No Solana Legacy Wallets Found
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            No Solana legacy wallets have been created for this
+                            account.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </section>
           </div>
         </div>

@@ -154,7 +154,7 @@ const TokenSearchResult = ({
                   {(
                     token.token_info.price_info.total_price / 1_000_000_000
                   ).toFixed(2)}
-                  B
+                  SOL
                 </span>
               </>
             )}

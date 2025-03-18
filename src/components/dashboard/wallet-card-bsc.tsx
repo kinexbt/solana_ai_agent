@@ -37,7 +37,7 @@ interface WalletCardProps {
   allWalletAddresses: string[];
 }
 
-export function WalletCard({
+export function WalletCardBsc({
   wallet,
   mutateWallets,
   allWalletAddresses,
@@ -131,7 +131,6 @@ export function WalletCard({
   const solBalanceInfo = walletPortfolio?.fungibleTokens?.find(
     (t) => t.id === SOL_MINT,
   );
-  console.log(solBalanceInfo);
 
   const balance = solBalanceInfo
     ? solBalanceInfo.token_info.balance /
@@ -176,7 +175,7 @@ export function WalletCard({
                     {balance?.toFixed(4)}
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
-                    SOL
+                    BNB
                   </span>
                 </>
               )}

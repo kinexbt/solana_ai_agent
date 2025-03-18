@@ -2,16 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 
-import { PencilIcon } from 'lucide-react';
-import { MoreHorizontal } from 'lucide-react';
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { SidebarMenuAction } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 
 export function ChooseAccount() {
   const router = useRouter();
@@ -22,22 +13,21 @@ export function ChooseAccount() {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <SidebarMenuAction>
-          <MoreHorizontal className="h-4 w-4" />
-        </SidebarMenuAction>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start">
-        <DropdownMenuItem onClick={() => handleSelectAccount('solana')}>
-          <PencilIcon className="h-4 w-4" />
-          <span>Choose Solana Account</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleSelectAccount('bsc')}>
-          <PencilIcon className="h-4 w-4" />
-          <span>Choose BSC Account</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="ml-8 flex items-center gap-2">
+      <Button
+        variant="outline"
+        className="h-8 rounded-lg px-4 text-sm transition-colors hover:bg-primary hover:text-primary-foreground"
+        onClick={() => handleSelectAccount('solana')}
+      >
+        SOLANA
+      </Button>
+      <Button
+        variant="outline"
+        className="h-8 rounded-lg px-4 text-sm transition-colors hover:bg-primary hover:text-primary-foreground"
+        onClick={() => handleSelectAccount('bsc')}
+      >
+        BSC
+      </Button>
+    </div>
   );
 }

@@ -19,6 +19,25 @@ export interface NonFungibleToken {
   spl20: Spl20;
 }
 
+export interface ERC721Token {
+  interface: string;
+  name: string;
+  symbol: string;
+  tokenURI(tokenId: string): string;
+
+  ownerOf(tokenId: string): string;
+  safeTransferFrom(from: string, to: string, tokenId: string): boolean;
+  transferFrom(from: string, to: string, tokenId: string): boolean;
+
+  totalSupply(): number;
+  tokenOfOwnerByIndex(owner: string, index: number): string;
+
+  approve(to: string, tokenId: string): boolean;
+  getApproved(tokenId: string): string;
+  setApprovalForAll(operator: string, approved: boolean): boolean;
+  isApprovedForAll(owner: string, operator: string): boolean;
+}
+
 export interface NonFungibleContent {
   $schema: string;
   json_uri: string;

@@ -181,6 +181,7 @@ enum WalletSource {
 
 enum Chain {
   SOLANA
+  ETHER
 }
 
 model TelegramChat {
@@ -250,11 +251,12 @@ enum PaymentStatus {
 
 model EthereumWallet {
   id               String   @id @default(cuid())
-  ownerId          String
+  userId           String?
   name             String
   publicKey        String   @unique
   encryptedPrivateKey String
   chain            String
+  balance          Float?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

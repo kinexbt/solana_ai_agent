@@ -5,7 +5,6 @@
 import { Metadata } from 'next';
 
 import { ChooseAccount } from './ChooseAccount';
-import { AccountContent } from './account-content';
 
 /**
  * Account page component
@@ -22,14 +21,13 @@ export default function AccountPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Page header */}
       <div className="border-b border-sidebar-accent bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex-2 flex h-14 w-full items-center justify-start px-8">
+        <div className="flex h-14 w-full items-center justify-start gap-10 px-6">
           <h1 className="text-lg font-medium">Your Accounts</h1>
-          <ChooseAccount />
+          <div className="relative">
+            <ChooseAccount />
+          </div>
         </div>
       </div>
-
-      {/* Page content */}
-      <AccountContent />
     </div>
   );
 }

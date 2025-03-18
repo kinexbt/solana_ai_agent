@@ -21,6 +21,23 @@ export interface FungibleToken {
   mint_extensions?: MintExtensions;
   token_info: TokenInfo;
 }
+export interface PriceInfo {
+  price_per_token: number; // Price of a single token
+  total_price: number; // Total value of tokens
+  currency: string; // Currency in which the price is denominated (e.g., USD)
+}
+
+export interface ERC20Token {
+  interface: string;
+  name: string;
+  id: string;
+  symbol: string;
+  decimals: number;
+  totalSupply: number;
+  balanceOf(address: string): number;
+  transfer(to: string, amount: number): boolean;
+  priceInfo: PriceInfo;
+}
 
 export interface Content {
   $schema: string;

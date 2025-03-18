@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await verifyUser();
     const userId = session?.data?.data?.id;
+    console.log('conversation ID:', userId);
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,183 +1,107 @@
-import { resolve } from '@bonfida/spl-name-service';
-import {
-  Connection,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { ethers } from 'ethers';
+// Correct import
+import { JsonRpcProvider, TransactionRequest } from 'ethers';
 
-import { RPC_URL } from '../constants';
+import { rpcUrl } from '../constants';
 
-export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
-
-export const createConnection = () => new Connection(RPC_URL);
+// Import utils separately
 
 export interface TransferWithMemoParams {
   /** Target address */
   to: string;
-  /** Transfer amount (in SOL) */
+  /** Transfer amount (in BNB) */
   amount: number;
   /** Attached message */
   memo: string;
 }
 
 export class BscUtils {
-  private static connection = new Connection(RPC_URL);
+  private static provider: JsonRpcProvider;
 
-  /**
-   * Resolve .sol domain name to address
-   * @param domain Domain name
-   */
-  static async resolveDomainToAddress(domain: string): Promise<string | null> {
-    const owner = await resolve(this.connection, domain);
-    return owner.toBase58();
+  constructor() {
+    BscUtils.provider = new JsonRpcProvider(rpcUrl);
   }
 
   /**
-   * Get wallet SOL balance
-   * @param address Wallet address or .sol domain
+   * Get wallet BNB balance
+   * @param address Wallet address
    */
   static async getBalance(address: string): Promise<number> {
     try {
-      let publicKeyStr = address;
-
-      // If it's a .sol domain, resolve to address first
-      if (address.toLowerCase().endsWith('.sol')) {
-        const resolvedAddress = await this.resolveDomainToAddress(address);
-        if (!resolvedAddress) {
-          throw new Error('Failed to resolve domain name');
-        }
-        publicKeyStr = resolvedAddress;
-      }
-
-      const balance = await this.connection.getBalance(
-        new PublicKey(publicKeyStr),
-      );
-      return balance / LAMPORTS_PER_SOL;
+      const balance = await this.provider.getBalance(address);
+      return parseFloat(ethers.formatEther(balance)); // Convert from Wei to BNB
     } catch (error) {
       console.error('Failed to fetch balance:', error);
       return 0;
     }
   }
 
-  static async getPhantomProvider(): Promise<PhantomProvider | null> {
-    if ('phantom' in window) {
-      const provider = window.phantom?.solana;
-      if (provider?.isPhantom) {
-        if (!provider.publicKey) {
-          try {
-            await provider.connect();
-          } catch (err) {
-            console.error('Failed to connect to Phantom wallet:', err);
-            return null;
-          }
-        }
-        return provider;
-      }
-    }
+  /**
+   * Resolve .bsc domain name to address
+   * @param domain Domain name
+   */
+  static async resolveDomainToAddress(domain: string): Promise<string | null> {
+    // Placeholder for BNS (Binance Name Service) resolution logic
+    // You can integrate with a BNS resolver if needed
+    return domain; // For now, return domain directly
+  }
 
-    // Fallback to window.solana
-    if (window.solana?.isPhantom) {
-      if (!window.solana.publicKey) {
-        try {
-          await window.solana.connect();
-        } catch (err) {
-          console.error('Failed to connect to Phantom wallet:', err);
-          return null;
-        }
-      }
-      return window.solana;
-    }
-
-    return null;
+  static async getProvider(): Promise<JsonRpcProvider | null> {
+    return this.provider;
   }
 
   /**
-   * Send SOL transfer transaction with memo
+   * Send BNB transfer transaction with memo
    */
   static async sendTransferWithMemo(
     params: TransferWithMemoParams,
+    privateKey: string,
   ): Promise<string | null> {
-    const provider = await this.getPhantomProvider();
-    if (!provider) {
-      throw new Error('Phantom wallet not found or connection rejected');
-    }
-
-    if (!provider.publicKey) {
-      throw new Error('Wallet not connected');
-    }
-
     const { to, amount, memo } = params;
-    const fromPubkey = provider.publicKey;
-    const toPubkey = new PublicKey(to);
+
+    const wallet = new ethers.Wallet(privateKey, this.provider);
 
     // Check balance first
-    const balance = await this.connection.getBalance(fromPubkey);
-    const requiredAmount = amount * LAMPORTS_PER_SOL;
+    const balance = await this.getBalance(wallet.address);
+    const requiredAmount = amount;
     if (balance < requiredAmount) {
       throw new Error(
-        `Insufficient balance. You have ${balance / LAMPORTS_PER_SOL} SOL but need ${amount} SOL`,
+        `Insufficient balance. You have ${balance} BNB but need ${amount} BNB`,
       );
     }
 
     try {
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.feePayer = fromPubkey;
+      // Create transaction object
+      const transaction: TransactionRequest = {
+        to,
+        value: ethers.parseEther(amount.toString()), // Convert from BNB to Wei
+        data: ethers.hexlify(ethers.toUtf8Bytes(memo)), // Attach memo as data (it will be stored in the transaction)
+      };
 
-      // Create transfer instruction
-      const transferInstruction = SystemProgram.transfer({
-        fromPubkey,
-        toPubkey,
-        lamports: requiredAmount,
-      });
+      // Send transaction
+      const txResponse = await wallet.sendTransaction(transaction);
 
-      // Create Memo instruction
-      const memoInstruction = new TransactionInstruction({
-        keys: [{ pubkey: fromPubkey, isSigner: true, isWritable: true }],
-        programId: new PublicKey(MEMO_PROGRAM_ID),
-        data: Buffer.from(memo, 'utf-8'),
-      });
+      // Get transaction hash before waiting for the transaction to be mined
+      const transactionHash = txResponse.hash;
 
-      transaction.add(transferInstruction);
-      transaction.add(memoInstruction);
-
-      // Get latest blockhash
-      const { blockhash } =
-        await this.connection.getLatestBlockhash('confirmed');
-      transaction.recentBlockhash = blockhash;
-
-      // Sign transaction
-      const signedTransaction = await provider.signTransaction(transaction);
-
-      // Send transaction and return signature immediately
-      const signature = await this.connection.sendRawTransaction(
-        signedTransaction.serialize(),
-        {
-          skipPreflight: false,
-          maxRetries: 5,
-          preflightCommitment: 'confirmed',
-        },
-      );
+      // Wait for transaction to be mined
+      const receipt = await txResponse.wait();
 
       // Log for debugging
-      console.log('Transaction sent successfully:', signature);
+      console.log('Transaction sent successfully:', transactionHash);
 
-      // Return signature immediately without waiting for confirmation
-      return signature;
-    } catch (error: unknown) {
-      console.error('TEST Transaction error:', error);
+      // Return transaction hash (signature)
+      return transactionHash;
+    } catch (error) {
+      console.error('Transaction error:', error);
       if (error instanceof Error) {
-        // Handle insufficient funds error
-        if (error.toString().includes('insufficient lamports')) {
+        // Handle specific known errors
+        if (error.message.includes('insufficient funds')) {
           throw new Error(
-            `Insufficient balance. Please make sure you have enough SOL to cover the transaction.`,
+            `Insufficient balance. Please make sure you have enough BNB to cover the transaction.`,
           );
         }
-        // Handle other known errors
-        if (error.toString().includes('Transaction simulation failed')) {
+        if (error.message.includes('transaction failed')) {
           throw new Error(`Transaction failed. Please try again.`);
         }
       }

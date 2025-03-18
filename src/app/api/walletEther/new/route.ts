@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     // Ensure the user hasn't exceeded the wallet limit
     const ethWalletCount = await prisma.ethereumWallet.count({
       where: {
-        ownerId: userId,
+        userId: userId,
         chain: 'BSC',
       },
     });
@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
 
     const newWallet = await prisma.ethereumWallet.create({
       data: {
-        ownerId: userId,
+        userId: userId,
         name: walletName,
         publicKey: wallet.address,
-        encryptedPrivateKey: wallet.privateKey, // You might choose not to encrypt it, but it's good practice
+        encryptedPrivateKey: wallet.privateKey,
         chain: 'BSC',
       },
     });

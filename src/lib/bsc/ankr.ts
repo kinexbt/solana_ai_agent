@@ -1,11 +1,18 @@
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { JsonRpcApiProvider, ethers } from 'ethers';
 
 import { chunkArray } from '@/lib/utils';
 import rawKnownAddresses from '@/lib/utils/known-addresses.json';
-import { FungibleToken } from '@/types/helius/fungibleToken';
-import { NonFungibleToken } from '@/types/helius/nonFungibleToken';
+import { ERC20Token } from '@/types/ankr/fungibleToken';
+import { ERC721Token } from '@/types/ankr/nonFungibleToken';
 
-import { RPC_URL } from '../constants';
+import {
+  BSC_PROVIDER_URL,
+  BSC_SCAN_API_URL,
+  RPC_URL,
+  WEI_PER_BNB,
+} from '../constants';
+
+const provier = new ethers.JsonRpcProvider(RPC_URL);
 
 export interface Holder {
   owner: string;
@@ -13,32 +20,41 @@ export interface Holder {
   classification?: string; // optional, assigned later
 }
 
-interface MintInfo {
-  mint: string;
+interface BscTokenInfo {
+  address: string;
+  name: string;
+  symbol: string;
   decimals: number;
-  supply: bigint;
-  isInitialized: boolean;
-  freezeAuthority: string;
-  mintAuthority: string;
+  totalSupply: bigint;
+  owner?: string;
 }
 
-type HeliusMethod =
-  | 'searchAssets'
-  | 'getBalance'
-  | 'getTokenAccounts'
-  | 'getAccountInfo'
-  | 'getMultipleAccounts'
-  | 'getTokenLargestAccounts';
+const ERC20_ABI = [
+  'function decimals() view returns (uint8)',
+  'function totalSupply() view returns (uint256)',
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
+  'function balanceOf(address owner) view returns (uint256)',
+];
+
+type AnkrMethod =
+  | 'eth_getBalance'
+  | 'eth_call'
+  | 'eth_getTransactionCount'
+  | 'eth_sendTransaction'
+  | 'eth_getBlockByHash'
+  | 'eth_getTransactionByHash'
+  | 'eth_getTransactionReceipt'
+  | 'searchAssets';
 
 const KNOWN_ADDRESSES: Record<string, string> = rawKnownAddresses as Record<
   string,
   string
 >;
 
-const fetchHelius = async (method: HeliusMethod, params: any) => {
+const fetchAnkr = async (method: AnkrMethod, params: any) => {
   try {
     const response = await fetch(RPC_URL, {
-      next: { revalidate: 5 },
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -56,204 +72,97 @@ const fetchHelius = async (method: HeliusMethod, params: any) => {
 
     if (!response.ok) {
       throw new Error(
-        `Helius API error: ${response.status} ${response.statusText}`,
+        `BSC RPC error: ${response.status} ${response.statusText}`,
       );
     }
 
     const data = await response.json();
     if (data.error) {
       throw new Error(
-        `Helius API error: ${data.error.message || JSON.stringify(data.error)}`,
+        `BSC RPC error: ${data.error.message || JSON.stringify(data.error)}`,
       );
     }
 
-    return data;
+    return data.result;
   } catch (error) {
     if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') {
       return {
         status: 429,
-        error: 'Helius API request failed: Too many requests',
+        error: 'BSC RPC request failed: Too many requests',
       };
     }
     if (error instanceof Error) {
-      throw new Error(`Helius API request failed: ${error.message}`);
+      throw new Error(`BSC RPC request failed: ${error.message}`);
     }
-    throw new Error('Helius API request failed with unknown error');
+    throw new Error('BSC RPC request failed with unknown error');
   }
 };
 
 export const getBalance: (walletAddress: string) => Promise<number> = async (
   walletAddress: string,
 ) => {
-  const data = await fetchHelius('getBalance', [walletAddress]);
-  return Number(data.result.balance) / LAMPORTS_PER_SOL;
+  const data = await fetchAnkr('eth_getBalance', [walletAddress, 'latest']);
+  return Number(data.result) / WEI_PER_BNB;
 };
 
-export const searchWalletAssets: (walletAddress: string) => Promise<{
-  fungibleTokens: FungibleToken[];
-  nonFungibleTokens: NonFungibleToken[];
+export const searchWalletAssetsBSC: (walletAddress: string) => Promise<{
+  fungibleTokens: ERC20Token[];
+  nonFungibleTokens: ERC721Token[];
 }> = async (ownerAddress: string) => {
   try {
-    const data = await fetchHelius('searchAssets', {
+    const data = await fetchAnkr('searchAssets', {
       ownerAddress: ownerAddress,
+      blockchain: 'bsc',
       tokenType: 'all',
       displayOptions: {
         showNativeBalance: true,
-        showInscription: false,
-        showCollectionMetadata: false,
       },
     });
 
-    if (!data.result?.items) {
-      throw new Error('Invalid response format from Helius API');
+    if (!data.result?.assets) {
+      throw new Error('Invalid response format from Ankr API');
     }
 
-    const items: (FungibleToken | NonFungibleToken)[] = data.result.items;
+    const items: (ERC20Token | ERC721Token)[] = data.result.assets;
 
-    // Split the items into fungible and non-fungible tokens
-    let fungibleTokens: FungibleToken[] = items.filter(
-      (item): item is FungibleToken =>
-        item.interface === 'FungibleToken' ||
-        item.interface === 'FungibleAsset',
+    let fungibleTokens: ERC20Token[] = items.filter(
+      (item): item is ERC20Token => item.interface === 'ERC20Token',
     );
 
-    // Hardcoding the image for USDC
-    fungibleTokens = fungibleTokens.map((item) => {
-      if (item.id === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
-        return {
-          ...item,
-          content: {
-            ...item.content,
-            files: [
-              {
-                uri: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-                cdn_uri: '',
-                mime: 'image/png',
-              },
-            ],
-            links: {
-              image:
-                'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-            },
-          },
-        };
-      } else if (item.id === 'bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1') {
-        return {
-          ...item,
-          content: {
-            ...item.content,
-            files: [
-              {
-                uri: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1/logo.png',
-                cdn_uri: '',
-                mime: 'image/png',
-              },
-            ],
-            links: {
-              image:
-                'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1/logo.png',
-            },
-          },
-        };
-      }
-      if (item.token_info.price_info === undefined) {
-        return {
-          ...item,
-          token_info: {
-            ...item.token_info,
-            price_info: {
-              price_per_token: 0,
-              total_price: 0,
-              currency: '$',
-            },
-          },
-        };
-      }
-      return item;
-    });
-    const nonFungibleTokens: NonFungibleToken[] = items.filter(
-      (item): item is NonFungibleToken =>
-        !['FungibleToken', 'FungibleAsset'].includes(item.interface),
+    const nonFungibleTokens: ERC721Token[] = items.filter(
+      (item): item is ERC721Token =>
+        item.interface === 'ERC721' || item.interface === 'ERC1155',
     );
 
-    // Calculate SOL balance from lamports
-    const solBalance = data.result.nativeBalance.lamports;
-    //console.log(data.result);
+    let bnbBalance = data.result.nativeBalance.balance;
+    const bnbTotalSupply = data.result.nativeBalance.total_supply;
+    const address = data.result.nativeBalance.address;
 
-    // Create SOL token object
-    const solToken = {
-      interface: 'FungibleAsset',
-      id: 'So11111111111111111111111111111111111111112', // Mint address as ID
-      content: {
-        $schema: 'https://schema.metaplex.com/nft1.0.json',
-        json_uri: '',
-        files: [
-          {
-            uri: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-            cdn_uri: '',
-            mime: 'image/png',
-          },
-        ],
-        metadata: {
-          description: 'Solana Token',
-          name: 'Wrapped SOL',
-          symbol: 'SOL',
-          token_standard: 'Native Token',
-        },
-        links: {
-          image:
-            'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-        },
+    const bnbToken: ERC20Token = {
+      interface: 'ERC20',
+      id: '0x0000000000000000000000000000000000000000',
+      name: 'BNB',
+      symbol: 'BNB',
+      decimals: 18,
+      totalSupply: bnbTotalSupply,
+      balanceOf(address: string): number {
+        return bnbBalance;
       },
-      authorities: [],
-      compression: {
-        eligible: false,
-        compressed: false,
-        data_hash: '',
-        creator_hash: '',
-        asset_hash: '',
-        tree: '',
-        seq: 0,
-        leaf_id: 0,
+      transfer(to: string, amount: number): boolean {
+        if (bnbBalance >= amount) {
+          bnbBalance -= amount; // Subtract from balance (simplified logic)
+          return true; // Return true to indicate the transfer was successful
+        }
+        return false; // If not enough balance, return false
       },
-      grouping: [],
-      royalty: {
-        royalty_model: '',
-        target: null,
-        percent: 0,
-        basis_points: 0,
-        primary_sale_happened: false,
-        locked: false,
-      },
-      creators: [],
-      ownership: {
-        frozen: false,
-        delegated: false,
-        delegate: null,
-        ownership_model: 'token',
-        owner: nonFungibleTokens[0]?.ownership.owner,
-      },
-      supply: null,
-      mutable: true,
-      burnt: false,
-
-      token_info: {
-        symbol: 'SOL',
-        balance: solBalance,
-        supply: 0,
-        decimals: 9,
-        token_program: '',
-        associated_token_address: '',
-        price_info: {
-          price_per_token: data.result.nativeBalance.price_per_sol,
-          total_price: data.result.nativeBalance.total_price,
-          currency: '',
-        },
+      priceInfo: {
+        price_per_token: data.result.nativeBalance.price_per_bnb,
+        total_price: data.result.nativeBalance.total_price,
+        currency: 'USD',
       },
     };
 
-    // Add SOL token to the tokens array
-    fungibleTokens.push(solToken);
+    fungibleTokens.push(bnbToken);
 
     return { fungibleTokens, nonFungibleTokens };
   } catch (error) {
@@ -264,30 +173,41 @@ export const searchWalletAssets: (walletAddress: string) => Promise<{
   }
 };
 
-export async function getMintAccountInfo(mint: string): Promise<MintInfo> {
-  const data = await fetchHelius('getAccountInfo', [
-    mint,
-    { encoding: 'jsonParsed' },
-  ]);
+export async function getBscTokenInfo(
+  tokenAddress: string,
+  providerUrl: string,
+): Promise<any> {
+  // Create a provider connected to the BSC network
+  const provider = new ethers.JsonRpcProvider(providerUrl);
 
-  if (!data.result || !data.result.value) {
-    throw new Error(`No account info found for mint: ${mint}`);
+  // Create a contract instance using the token address and ABI
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+
+  try {
+    // Fetch token details
+    const name = await tokenContract.name();
+    const symbol = await tokenContract.symbol();
+    const decimals = await tokenContract.decimals();
+    const totalSupply = await tokenContract.totalSupply();
+
+    // You can also fetch the balance of a specific address if needed
+    // const balance = await tokenContract.balanceOf(someAddress);
+
+    // Return token info
+    return {
+      tokenAddress,
+      name,
+      symbol,
+      decimals,
+      totalSupply: totalSupply.toString(), // Convert to string to handle large numbers
+    };
+  } catch (error) {
+    throw new Error(
+      `Error fetching token info for address: ${tokenAddress}. ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    );
   }
-
-  const value = data.result.value;
-  if (!value.data || !value.data.parsed || value.data.parsed.type !== 'mint') {
-    throw new Error(`Account is not a valid SPL mint: ${mint}`);
-  }
-
-  const info = value.data.parsed.info;
-  return {
-    mint,
-    decimals: info.decimals,
-    supply: BigInt(info.supply),
-    isInitialized: info.isInitialized,
-    freezeAuthority: info.freezeAuthority,
-    mintAuthority: info.mintAuthority,
-  };
 }
 
 /**
@@ -295,83 +215,119 @@ export async function getMintAccountInfo(mint: string): Promise<MintInfo> {
  * returning a Map of `address -> Holder`.
  */
 export async function getTokenHolders(
-  mintInfo: MintInfo,
+  tokenAddress: string, // BSC token address (ERC-20)
+  providerUrl: string, // BSC provider URL
+  holders: string[], // List of token holders' addresses
 ): Promise<Map<string, Holder>> {
-  let page = 1;
+  const provider = new ethers.JsonRpcProvider(providerUrl);
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+
   const holderMap = new Map<string, Holder>();
 
-  while (page <= 100) {
-    const data = await fetchHelius('getTokenAccounts', {
-      page,
-      limit: 1000,
-      displayOptions: {},
-      mint: mintInfo.mint,
-    });
+  for (let i = 0; i < holders.length; i++) {
+    const holderAddress = holders[i];
 
-    if (!data.result || data.result.token_accounts.length === 0) {
-      break; // no more results
-    }
+    try {
+      // Fetch the balance for the holder
+      const balanceRaw = await tokenContract.balanceOf(holderAddress);
+      const decimals = await tokenContract.decimals();
+      const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
 
-    data.result.token_accounts.forEach((account: any) => {
-      const owner = account.owner;
-      const balanceRaw = BigInt(account.amount || '0');
-      const balance = Number(balanceRaw) / 10 ** mintInfo.decimals;
-
-      if (holderMap.has(owner)) {
-        const h = holderMap.get(owner)!;
-        h.balance += balance;
-      } else {
-        holderMap.set(owner, {
-          owner,
-          balance: balance,
+      if (balance > 0) {
+        holderMap.set(holderAddress, {
+          owner: holderAddress,
+          balance,
         });
       }
-    });
-
-    page++;
+    } catch (error) {
+      console.error(
+        `Error fetching balance for holder ${holderAddress}:`,
+        error,
+      );
+    }
   }
 
   return holderMap;
 }
 
-export const getTokenAccountInfo = async (address: string) => {
-  const data = await fetchHelius('getAccountInfo', [
-    address,
-    { encoding: 'jsonParsed' },
-  ]);
-  return data.result.value;
+export const getTokenAccountInfo = async (
+  address: string, // The user's wallet address
+  tokenAddress: string, // The ERC-20 token contract address
+  providerUrl: string, // The RPC provider URL for BSC
+) => {
+  // Create a provider connected to the BSC network
+  const provider = new ethers.JsonRpcProvider(providerUrl);
+
+  // Create a contract instance using the token address and ABI
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+
+  try {
+    // Fetch token balance for the given address
+    const balanceRaw = await tokenContract.balanceOf(address);
+    const decimals = await tokenContract.decimals();
+    const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
+
+    // Return the account information
+    return {
+      address,
+      balance,
+      tokenAddress,
+    };
+  } catch (error) {
+    console.error(
+      `Error fetching token account info for address ${address}:`,
+      error,
+    );
+    throw new Error('Failed to fetch token account info');
+  }
 };
 
 export async function getTopTokenHolders(
-  mintInfo: MintInfo,
+  tokenInfo: BscTokenInfo,
+  apiKey: string, // BSCScan API key
+  providerUrl: string, // BSC provider URL
 ): Promise<Map<string, Holder>> {
-  const data = await fetchHelius('getTokenLargestAccounts', [mintInfo.mint]);
-
-  if (!data.result || data.result.value.length === 0) {
-    throw new Error('No token holders found');
-  }
-  const tokenAccountAddresses = data.result.value.map((a: any) => a.address);
-
-  const holderMap = new Map<string, Holder>();
-  const tokenAccountsResponse = await getMultipleAccountsInfoHelius(
-    tokenAccountAddresses,
+  const provider = new ethers.JsonRpcProvider(providerUrl);
+  const tokenContract = new ethers.Contract(
+    tokenInfo.address,
+    ERC20_ABI,
+    provider,
   );
 
-  const tokenAccounts = tokenAccountsResponse?.result?.value;
-  if (!tokenAccounts || !Array.isArray(tokenAccounts)) {
-    return holderMap;
+  // Step 1: Fetch top token holders from BSCScan
+  const response = await fetch(
+    `${BSC_SCAN_API_URL}?module=token&action=topholders&contractaddress=${tokenInfo.address}&apikey=${apiKey}`,
+  );
+
+  const data = await response.json();
+
+  if (data.status !== '1' || !data.result) {
+    throw new Error('No token holders found');
   }
-  for (const tokenAccount of tokenAccounts) {
-    const balance = tokenAccount.data.parsed.info.tokenAmount.uiAmount;
-    const owner = tokenAccount.data.parsed.info.owner;
-    if (holderMap.has(owner)) {
-      const h = holderMap.get(owner)!;
-      h.balance += balance;
-    } else {
-      holderMap.set(owner, {
-        owner: owner,
-        balance: balance,
-      });
+
+  const topHolders = data.result.slice(0, 100); // Fetch top 100 holders, for example
+
+  // Step 2: Get the balances of these holders
+  const holderMap = new Map<string, Holder>();
+  for (const holder of topHolders) {
+    const holderAddress = holder.Account;
+
+    try {
+      const balanceRaw = await tokenContract.balanceOf(holderAddress);
+      const decimals = await tokenContract.decimals();
+      const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
+
+      if (balance > 0) {
+        holderMap.set(holderAddress, {
+          owner: holderAddress,
+          balance,
+        });
+      }
+    } catch (error) {
+      console.error(
+        `Error fetching balance for holder ${holderAddress}:`,
+        error,
+      );
     }
   }
 
@@ -381,47 +337,77 @@ export async function getTopTokenHolders(
 /**
  * Fetches total number of holders returns -1 if there are more than 50k holders
  */
-export async function getTokenHolderCount(mintInfo: MintInfo): Promise<number> {
+export async function getTokenHolderCount(
+  tokenInfo: BscTokenInfo,
+  apiKey: string, // BSCScan API Key
+): Promise<number> {
   const PAGE_SIZE = 1000;
   let page = 1;
-  const allOwners = new Set();
+  const allOwners = new Set<string>();
 
   while (page <= 100) {
-    const data = await fetchHelius('getTokenAccounts', {
-      page,
-      limit: 1000,
-      displayOptions: {},
-      mint: mintInfo.mint,
-    });
-
-    if (!data.result || data.result.token_accounts.length === 0) {
-      break;
-    }
-
-    data.result.token_accounts.forEach((account: any) =>
-      allOwners.add(account.owner),
+    // Fetch transaction logs from BSCScan to get token holders
+    const response = await fetch(
+      `${BSC_SCAN_API_URL}?module=account&action=tokentx&contractaddress=${tokenInfo.address}&page=${page}&offset=${PAGE_SIZE}&apikey=${apiKey}`,
     );
 
-    if (data.result.token_accounts.length < PAGE_SIZE) {
-      break;
+    const data = await response.json();
+
+    if (data.status !== '1' || !data.result || data.result.length === 0) {
+      break; // no more token transactions
+    }
+
+    data.result.forEach((tx: any) => {
+      // Add sender and receiver to the owners set
+      allOwners.add(tx.from);
+      allOwners.add(tx.to);
+    });
+
+    if (data.result.length < PAGE_SIZE) {
+      break; // reached the last page
     }
 
     page++;
   }
+
+  // If there are more than 50,000 owners, return -1 (for large data sets)
   if (allOwners.size > 50000) {
     return -1;
   }
+
   return allOwners.size;
 }
 
 /**
  * Use "getMultipleAccounts" in a single RPC call for a list of addresses
  */
-async function getMultipleAccountsInfoHelius(addresses: string[]) {
-  return await fetchHelius('getMultipleAccounts', [
-    addresses,
-    { encoding: 'jsonParsed' },
-  ]);
+export async function getMultipleAccountsInfoBSC(
+  addresses: string[],
+  apiKey: string,
+) {
+  const results = [];
+
+  // Loop over the addresses in batches (BSCScan supports max 100 addresses per API call)
+  for (let i = 0; i < addresses.length; i += 100) {
+    const batch = addresses.slice(i, i + 100);
+    const addressList = batch.join(',');
+
+    // Fetch the account info for multiple addresses (token balances)
+    const response = await fetch(
+      `${BSC_SCAN_API_URL}?module=account&action=balancemulti&address=${addressList}&tag=latest&apikey=${apiKey}`,
+    );
+
+    const data = await response.json();
+
+    if (data.status !== '1' || !data.result) {
+      throw new Error('Error fetching account info from BSCScan');
+    }
+
+    // Add the result to the results array
+    results.push(...data.result);
+  }
+
+  return results;
 }
 
 /**
@@ -434,34 +420,36 @@ async function classifyAddresses(
   holderMap: Map<string, Holder>,
   addresses: string[],
   chunkSize = 20,
+  apiKey: string, // Pass the BSCScan API key for API calls
 ) {
   const addressChunks = chunkArray(addresses, chunkSize);
 
   for (const chunk of addressChunks) {
-    const response = await getMultipleAccountsInfoHelius(chunk);
-    const accountInfos = response?.result?.value;
-
-    if (!accountInfos || !Array.isArray(accountInfos)) {
+    const response = await getMultipleAccountsInfoBSC(chunk, apiKey);
+    if (!response || response.length === 0) {
       continue;
     }
 
     for (let i = 0; i < chunk.length; i++) {
       const addr = chunk[i];
-      const accInfo = accountInfos[i];
+      const accInfo = response[i];
       const holder = holderMap.get(addr);
       if (!holder) continue;
 
-      // If address is in ACCOUNT_LABELS
+      // If address is in KNOWN_ADDRESSES
       if (addr in KNOWN_ADDRESSES) {
         holder.classification = KNOWN_ADDRESSES[addr];
         continue;
       }
 
-      // Otherwise check `accInfo.owner`
-      if (accInfo && accInfo.owner) {
-        const programId = accInfo.owner;
-        holder.classification =
-          KNOWN_ADDRESSES[programId] ?? `Unrecognized Program`;
+      // Check if the address is a contract or EOA (Externally Owned Account)
+      if (accInfo.balance && accInfo.balance > 0) {
+        // Address has a balance, possibly an EOA or token contract
+        // You can also perform other checks like token balances or contract types
+        holder.classification = 'EOA (Externally Owned Account)';
+      } else if (accInfo.is_contract && accInfo.is_contract === true) {
+        // Address is a contract
+        holder.classification = 'Smart Contract Address';
       } else {
         holder.classification = "Unknown or Doesn't Exist";
       }
@@ -472,28 +460,60 @@ async function classifyAddresses(
 export async function getHoldersClassification(
   mint: string,
   limit: number = 10,
+  apiKey: string, // Pass your BSCScan API key
 ) {
-  const mintAccountInfo = await getMintAccountInfo(mint);
+  // Assuming getMintAccountInfo is replaced with a BSC equivalent
+  const mintAccountInfo = await getMintAccountInfoBSC(mint, apiKey);
   const totalSupply =
-    Number(mintAccountInfo.supply) / 10 ** mintAccountInfo.decimals;
+    Number(mintAccountInfo.totalSupply) / 10 ** mintAccountInfo.decimals;
 
-  const topHolderMap = await getTopTokenHolders(mintAccountInfo);
-  const totalHolders = await getTokenHolderCount(mintAccountInfo);
+  const topHolderMap = await getTopTokenHolders(
+    mintAccountInfo,
+    apiKey,
+    BSC_PROVIDER_URL,
+  );
+  const totalHolders = await getTokenHolderCount(mintAccountInfo, apiKey);
 
   const sortedHolders = Array.from(topHolderMap.values()).sort((a, b) => {
     return b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0;
   });
 
   const topHolders = sortedHolders.slice(0, limit);
+
+  // Classify holders based on their address and API data
   await classifyAddresses(
     topHolderMap,
     topHolders.map((h) => h.owner),
     limit,
+    apiKey,
   );
 
   return {
     totalHolders,
     topHolders,
     totalSupply,
+  };
+}
+
+// Replace with your BSC-specific mint info retrieval function (from BSCScan API)
+async function getMintAccountInfoBSC(
+  address: string,
+  apiKey: string,
+): Promise<BscTokenInfo> {
+  const response = await fetch(
+    `https://api.bscscan.com/api?module=token&action=tokeninfo&contractaddress=${address}&apikey=${apiKey}`,
+  );
+  const data = await response.json();
+
+  if (data.status !== '1') {
+    throw new Error(`Failed to fetch mint account info for: ${address}`);
+  }
+
+  return {
+    address,
+    name: data.result[0].name,
+    symbol: data.result[0].symbol,
+    decimals: parseInt(data.result[0].decimals),
+    totalSupply: BigInt(data.result[0].totalSupply),
   };
 }

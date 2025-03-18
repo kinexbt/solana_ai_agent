@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Card } from '@/components/ui/card';
 
 import { bscTools } from './bsc/bsc';
+import { bscTokenInfoTools } from './bsc/bscTokenPrice';
 import { coinGeckoTools } from './bsc/coinGecko';
 import { bscDexscreenerTools } from './bsc/dexscreenerBsc';
 import { actionTools } from './generic/action';
@@ -173,6 +174,7 @@ export const defaultTools: Record<string, ToolConfig> = {
   ...bscTools,
   ...coinGeckoTools,
   ...bscDexscreenerTools,
+  ...bscTokenInfoTools,
 };
 
 export function filterTools(
@@ -210,7 +212,7 @@ export const toolsets: Record<
   { tools: string[]; description: string }
 > = {
   coreTools: {
-    tools: ['actionTools', 'utilTools', 'jupiterTools'],
+    tools: ['actionTools', 'utilTools', 'jupiterTools', 'bscTokenInfoTools'],
     description:
       'Core utility tools for general operations, including actions, searching token info, utility functions.',
   },
@@ -220,14 +222,29 @@ export const toolsets: Record<
       'Web scraping and content extraction tools for reading web pages and extracting content.',
   },
   defiTools: {
-    tools: ['solanaTools', 'dexscreenerTools', 'bscDexscreenerTools'],
+    tools: [
+      'solanaTools',
+      'bscTools',
+      'dexscreenerTools',
+      'bscDexscreenerTools',
+      'bscTokenInfoTools',
+    ],
     description:
       'Tools for interacting with DeFi protocols on Solana and BSC, including swaps, market data, token information and details.',
   },
   traderTools: {
-    tools: ['birdeyeTools, coinGecko'],
+    tools: ['birdeyeTools', 'coinGeckoTools'],
     description:
       'Tools for analyzing and tracking traders and trades on Solana and BSC DEXes.',
+  },
+  bscTools: {
+    tools: [
+      'bscTools',
+      'bscTokenInfoTools',
+      'bscDexscreenerTools',
+      'coinGeckoTools',
+    ],
+    description: 'Tools for interacting with BSC tokens and DEXs',
   },
   financeTools: {
     tools: ['definedTools'],

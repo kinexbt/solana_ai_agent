@@ -1,6 +1,11 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
 import Image from 'next/image';
 
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
+import axios from 'axios';
 import { ethers } from 'ethers';
 import {
   AlertCircle,
@@ -31,15 +36,20 @@ import { BscUtils } from '@/lib/bsc';
 import {
   type Holder,
   getHoldersClassification,
-  searchWalletAssets,
+  searchWalletAssetsBSC,
 } from '@/lib/bsc/ankr';
+import {
+  BSC_SCAN_API_KEY,
+  COIN_GECKO_API_URL,
+  WEI_PER_BNB,
+} from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { formatShortNumber, truncate } from '@/lib/utils/format';
 import { retrieveAgentKit } from '@/server/actions/ai';
 import {
   BNB_CONTRACT_ADDRESS,
-  transformToPortfolio,
-} from '@/types/akfr/portfolio';
+  transformToPortfolioBsc,
+} from '@/types/ankr/portfolioBsc';
 import { publicKeySchema } from '@/types/util';
 
 // Constants
@@ -97,6 +107,7 @@ interface TokenHoldersResult {
   error?: string;
 }
 
+const limit = 10;
 const domainSchema = z
   .string()
   .regex(
@@ -107,58 +118,80 @@ const domainSchema = z
     'A BNB domain name (e.g., example.bnb). Needed for resolving a domain to an address.',
   );
 
+const fetchTokenMetadata = async (contractAddress: string) => {
+  const url = `https://api.bscscan.com/api?module=token&action=getTokenInfo&contractaddress=${contractAddress}&apikey=${BSC_SCAN_API_KEY}`;
+  const response = await axios.get(url);
+  return response.data.result;
+};
+
+const fetchTokenPrice = async (symbol: string) => {
+  try {
+    const response = await axios.get(COIN_GECKO_API_URL);
+    const price = response.data.binancecoin.usd;
+    return price;
+  } catch (error) {
+    console.error('Error fetching price', error);
+    return null;
+  }
+};
+
 const TokenSearchResult = ({
-  token,
+  tokenAddress,
   className,
 }: {
-  token: any;
+  tokenAddress: string;
   className?: string;
 }) => {
+  const [tokenData, setTokenData] = useState<any>(null);
+  const [tokenPrice, setTokenPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const metadata = await fetchTokenMetadata(tokenAddress);
+      const price = await fetchTokenPrice(metadata.symbol);
+
+      setTokenData(metadata);
+      setTokenPrice(price);
+    };
+
+    fetchData();
+  }, [tokenAddress]);
+
+  if (!tokenData) return <div>Loading...</div>;
+
   return (
     <div
-      className={cn(
-        'relative overflow-hidden rounded-2xl bg-muted/50 p-4',
-        className,
-      )}
+      className={
+        className || 'relative overflow-hidden rounded-2xl bg-muted/50 p-4'
+      }
     >
       <div className="flex items-center gap-3">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl">
-          <Image
-            src={token.content?.links?.image || '/placeholder.png'}
-            alt={token.content?.metadata?.symbol || 'Token'}
+          <img
+            src={tokenData?.image || '/placeholder.png'}
+            alt={tokenData?.symbol || 'Token'}
             className="object-cover"
-            fill
-            sizes="40px"
-            onError={(e) => {
-              // @ts-expect-error - Type 'string' is not assignable to type 'never'
-              e.target.src =
-                'https://altcoinsbox.com/binance-smart-chain-logo-download-bnb-chain-logo-svg-png-ai-jpg';
-            }}
+            width="40px"
+            height="40px"
           />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-base font-medium">
-              {token.content?.metadata?.name || 'Unknown Token'}
+              {tokenData?.name || 'Unknown Token'}
             </h3>
             <span className="shrink-0 rounded-md bg-background/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              {token.content?.metadata?.symbol || '???'}
+              {tokenData?.symbol || '???'}
             </span>
           </div>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <span className="truncate font-mono">
-              {token.id.slice(0, 4)}...{token.id.slice(-4)}
+              {tokenAddress.slice(0, 4)}...{tokenAddress.slice(-4)}
             </span>
-            {token.token_info?.price_info?.total_price && (
+            {tokenPrice && (
               <>
                 <span>•</span>
-                <span>
-                  Vol: $
-                  {(
-                    token.token_info.price_info.total_price / 1_000_000_000
-                  ).toFixed(2)}
-                  B
-                </span>
+                <span>Price: ${tokenPrice.toFixed(2)} USD</span>
               </>
             )}
           </div>
@@ -363,7 +396,7 @@ export function TokenHoldersResult({
                                 </a>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>View on BscScan</p>
+                                <p>View on Bscscan</p>
                                 <p className="text-xs text-muted-foreground">
                                   {holder.owner}
                                 </p>
@@ -492,8 +525,8 @@ const wallet = {
     parameters: z.object({ walletAddress: publicKeySchema }),
     execute: async ({ walletAddress }: { walletAddress: string }) => {
       try {
-        const { fungibleTokens } = await searchWalletAssets(walletAddress);
-        const portfolio = transformToPortfolio(
+        const { fungibleTokens } = await searchWalletAssetsBSC(walletAddress);
+        const portfolio = transformToPortfolioBsc(
           walletAddress,
           fungibleTokens,
           [],
@@ -676,7 +709,11 @@ const token = {
     }),
     execute: async ({ mint }: TokenParams): Promise<TokenHoldersResult> => {
       try {
-        const tokenHolderStats = await getHoldersClassification(mint);
+        const tokenHolderStats = await getHoldersClassification(
+          mint,
+          limit,
+          BSC_SCAN_API_KEY as string,
+        );
         console.log('[token.holders] tokenHolderStats', tokenHolderStats);
         return {
           success: true,
