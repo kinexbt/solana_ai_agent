@@ -20,7 +20,7 @@ model SavedPrompt {
   lastUsedAt      DateTime?
   isFavorite      Boolean  @default(false)
 
-  user            User     @relation(fields: [userId], references: [id])
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, lastUsedAt], name: "idx_userId_lastUsedAt") 
   @@map("saved_prompts") 
@@ -37,7 +37,7 @@ model User {
   referralCode String? @unique
   referringUserId String?
 
-  wallets       Wallet[]
+  wallets       Wallet[] 
   conversations Conversation[]
   Rule          Rule[]
   Action        Action[]
@@ -47,25 +47,6 @@ model User {
   subscription  Subscription?
 
   @@map("users")
-}
-
-model Wallet {
-  id                  String       @id @default(cuid())
-  ownerId             String
-  name                String
-  publicKey           String
-  encryptedPrivateKey String?      @db.Text
-  walletSource        WalletSource @default(CUSTOM)
-  chain               Chain        @default(SOLANA)
-  delegated           Boolean      @default(false)
-  active              Boolean      @default(true)
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-
-  owner User @relation(fields: [ownerId], references: [id])
-
-  @@unique([ownerId, publicKey])
-  @@map("wallets")
 }
 
 model Conversation {
@@ -78,7 +59,7 @@ model Conversation {
   lastMessageAt DateTime?
   visibility Visibility @default(PRIVATE)
 
-  user     User      @relation(fields: [userId], references: [id])
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
   Action   Action[]
 
@@ -94,7 +75,7 @@ model Message {
   experimental_attachments Json?
   createdAt      DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }
@@ -164,7 +145,7 @@ model TokenStat {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("token_stats")
 }
@@ -180,8 +161,8 @@ enum WalletSource {
 }
 
 enum Chain {
-  SOLANA
-  ETHER
+
+  BSC
 }
 
 model TelegramChat {
@@ -249,14 +230,22 @@ enum PaymentStatus {
   PENDING
 }
 
-model EthereumWallet {
+model Wallet {
   id               String   @id @default(cuid())
-  userId           String?
+  userId           String
   name             String
   publicKey        String   @unique
   encryptedPrivateKey String
-  chain            String
+  walletSource     WalletSource @default(CUSTOM)
+  chain            Chain    @default(BSC)
   balance          Float?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  delegated        Boolean      @default(false)
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  owner User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, publicKey])
+  @@map("wallets")
 }

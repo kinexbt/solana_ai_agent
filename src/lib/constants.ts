@@ -16,3 +16,4 @@ export const BSC_SCAN_API_URL = 'https://api.bscscan.com/api';
 export const BSC_SCAN_API_KEY = process.env.BSC_SCAN_API_KEY;
 export const BSC_PROVIDER_URL = 'https://bsc-dataseed.binance.org';
 export const COIN_GECKO_API_URL = 'https://api.coingecko.com/api/v3';
+export const BSC_RPC_URL = 'https://binance.llamarpc.com/';

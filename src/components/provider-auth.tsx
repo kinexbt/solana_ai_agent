@@ -26,11 +26,14 @@ export default function AuthProviders({
           logo: resolvedTheme === 'dark' ? '/letter_w.svg' : '/letter.svg',
         },
         externalWallets: {
-          solana: {
-            connectors: solanaConnectors as any,
+          // solana: {
+          //   connectors: solanaConnectors as any,
+          // },
+          walletConnect: {
+            enabled: true,
           },
         },
-        solanaClusters: [{ name: 'mainnet-beta', rpcUrl: RPC_URL }],
+        // solanaClusters: [{ name: 'mainnet-beta', rpcUrl: RPC_URL }],
       }}
     >
       {children}

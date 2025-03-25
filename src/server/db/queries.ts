@@ -24,6 +24,16 @@ export async function dbGetConversation({
 }) {
   try {
     // Mark conversation as read if user is fetching
+    console.log('Updating conversation:', conversationId);
+    const conversation = await prisma.conversation.findUnique;
+    ({
+      where: { id: conversationId },
+      include: includeMessages ? { messages: true } : undefined,
+    });
+    if (!conversation) {
+      console.log('no conversation data in db');
+      return null;
+    }
     if (!isServer) {
       return await prisma.conversation.update({
         where: { id: conversationId },

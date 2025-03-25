@@ -32,7 +32,6 @@ export function transformToPortfolio(
   fungibleTokens: FungibleToken[],
   nonFungibleTokens: NonFungibleToken[],
 ): WalletPortfolio {
-  // Rename Wrapped SOL to Solana
   const sol = fungibleTokens.find((token) => token.id === SOL_MINT);
   if (sol) {
     sol.content.metadata.name = 'Solana';

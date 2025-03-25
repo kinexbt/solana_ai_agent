@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 
 import { SOL_MINT } from '@/types/helius/portfolio';
 
-import { getAgentKit } from '../actions/ai';
+import { getAgentKit } from '../actions/ai-solana';
 
 /*
 Server Utils

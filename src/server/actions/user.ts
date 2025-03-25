@@ -8,9 +8,10 @@ import { WalletWithMetadata } from '@privy-io/server-auth';
 import { customAlphabet } from 'nanoid';
 import { z } from 'zod';
 
+import { useWalletPortfolio } from '@/hooks/use-wallet-portfolio';
+import { generateEncryptedKeyPair } from '@/lib/bsc/wallet-generator';
 import prisma from '@/lib/prisma';
 import { ActionResponse, actionClient } from '@/lib/safe-action';
-import { generateEncryptedKeyPair } from '@/lib/solana/wallet-generator';
 import { EmbeddedWallet, PrismaUser } from '@/types/db';
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -29,127 +30,157 @@ const PRIVY_SERVER_CLIENT = new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET, {
   }),
 });
 
+// Helper function to generate unique referral codes
+const generateReferralCode = async (): Promise<string> => {
+  const nanoid = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', 8); // 8-character alphanumeric
+
+  const MAX_ATTEMPTS = 10; // Limit to prevent infinite loops
+  let attempts = 0;
+
+  while (attempts < MAX_ATTEMPTS) {
+    const referralCode = nanoid();
+    const existingCode = await prisma.user.findUnique({
+      where: { referralCode },
+    });
+
+    if (!existingCode) {
+      return referralCode; // Return the unique code
+    }
+
+    attempts++;
+  }
+
+  // Failsafe: throw an error if a unique code couldn't be generated
+  throw new Error(
+    'Unable to generate a unique referral code after 10 attempts',
+  );
+};
+
 const getOrCreateUser = actionClient
   .schema(z.object({ userId: z.string() }))
   .action<ActionResponse<PrismaUser>>(async ({ parsedInput: { userId } }) => {
-    const generateReferralCode = async (): Promise<string> => {
-      const nanoid = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', 8); // 8-character alphanumeric
-
-      const MAX_ATTEMPTS = 10; // Limit to prevent infinite loops
-      let attempts = 0;
-
-      while (attempts < MAX_ATTEMPTS) {
-        const referralCode = nanoid();
-        const existingCode = await prisma.user.findUnique({
-          where: { referralCode },
-        });
-
-        if (!existingCode) {
-          return referralCode; // Return the unique code
-        }
-
-        attempts++;
-      }
-
-      // Failsafe: throw an error if a unique code couldn't be generated
-      throw new Error(
-        'Unable to generate a unique referral code after 10 attempts',
-      );
-    };
-
-    const existingUser = await prisma.user.findUnique({
-      where: { privyId: userId },
-      include: {
-        wallets: {
-          select: {
-            id: true,
-            ownerId: true,
-            name: true,
-            publicKey: true,
-            walletSource: true,
-            delegated: true,
-            active: true,
-            chain: true,
-          },
-          where: {
-            active: true,
-          },
-        },
-        subscription: {
-          include: {
-            payments: true,
-          },
-        },
-      },
-    });
-
-    if (existingUser) {
-      // If the user exists but doesn't have a referralCode, generate one
-      if (!existingUser.referralCode) {
-        const referralCode = await generateReferralCode();
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { referralCode },
-        });
-        existingUser.referralCode = referralCode;
-      }
-      return { success: true, data: existingUser };
+    const token = (await cookies()).get('privy-token')?.value;
+    if (!token) {
+      return { success: false, error: 'No privy token found' };
     }
 
-    // Look up referralCode from cookie
-    const cookieReferralCode = (await cookies()).get('referralCode')?.value;
-    let referringUserId: string | null = null;
+    try {
+      const claims = await PRIVY_SERVER_CLIENT.verifyAuthToken(token);
 
-    if (cookieReferralCode) {
-      const referringUser = await prisma.user.findUnique({
-        where: { referralCode: cookieReferralCode },
-        select: { id: true },
+      const existingUser = await prisma.user.findUnique({
+        where: { privyId: claims.userId },
+        include: {
+          wallets: {
+            select: {
+              id: true,
+              userId: true,
+              name: true,
+              publicKey: true,
+              walletSource: true,
+              delegated: true,
+              active: true,
+              chain: true,
+              encryptedPrivateKey: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+            where: {
+              active: true,
+            },
+          },
+          subscription: {
+            include: {
+              payments: true,
+            },
+          },
+        },
       });
 
-      if (referringUser) {
-        referringUserId = referringUser.id;
+      if (existingUser) {
+        // If the user exists but doesn't have a referralCode, generate one
+        if (!existingUser.referralCode) {
+          const referralCode = await generateReferralCode();
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { referralCode },
+          });
+          existingUser.referralCode = referralCode;
+        }
+        return { success: true, data: existingUser };
       }
-    }
 
-    // Create a new user if none exists
-    const referralCode = await generateReferralCode();
-    const createdUser = await prisma.user.create({
-      data: {
-        privyId: userId,
-        referralCode,
-        referringUserId,
-      },
-    });
+      // Look up referralCode from cookie
+      const cookieReferralCode = (await cookies()).get('referralCode')?.value;
+      let referringUserId: string | null = null;
 
-    const { publicKey, encryptedPrivateKey } = await generateEncryptedKeyPair();
-    const initialWallet = await prisma.wallet.create({
-      data: {
-        ownerId: createdUser.id,
-        name: 'Default',
-        publicKey,
-        encryptedPrivateKey,
-      },
-    });
+      if (cookieReferralCode) {
+        const referringUser = await prisma.user.findUnique({
+          where: { referralCode: cookieReferralCode },
+          select: { id: true },
+        });
 
-    return {
-      success: true,
-      data: {
-        ...createdUser,
-        wallets: [
-          {
-            id: initialWallet.id,
-            ownerId: initialWallet.ownerId,
-            name: initialWallet.name,
-            publicKey: initialWallet.publicKey,
-            walletSource: initialWallet.walletSource,
-            delegated: initialWallet.delegated,
-            active: initialWallet.active,
-            chain: initialWallet.chain,
+        if (referringUser) {
+          referringUserId = referringUser.id;
+        }
+      }
+
+      // Create a new user if none exists
+      const referralCode = await generateReferralCode();
+      const createdUser = await prisma.user.create({
+        data: {
+          privyId: userId,
+          referralCode,
+          referringUserId,
+        },
+      });
+
+      const { publicKey, encryptedPrivateKey } =
+        await generateEncryptedKeyPair();
+      const initialWallet = await prisma.wallet.create({
+        data: {
+          userId: createdUser.id,
+          name: 'Default',
+          publicKey,
+          encryptedPrivateKey,
+        },
+      });
+
+      return {
+        success: true,
+        data: {
+          ...createdUser,
+          wallets: [
+            {
+              id: initialWallet.id,
+              userId: initialWallet.userId,
+              name: initialWallet.name,
+              publicKey: initialWallet.publicKey,
+              walletSource: initialWallet.walletSource,
+              delegated: initialWallet.delegated,
+              active: initialWallet.active,
+              chain: initialWallet.chain,
+              encryptedPrivateKey: initialWallet.encryptedPrivateKey,
+              createdAt: initialWallet.createdAt || new Date(),
+              updatedAt: initialWallet.updatedAt || new Date(),
+            },
+          ],
+          subscription: {
+            id: '',
+            userId: createdUser.id,
+            active: false,
+            createdAt: new Date(),
+            startDate: new Date(),
+            nextPaymentDate: new Date(),
+            endDate: null,
+            billingCycle: 'MONTHLY',
+            payments: [],
           },
-        ],
-        subscription: null,
-      },
-    };
+        },
+      };
+    } catch (error) {
+      console.error('Error in getOrCreateUser:', error);
+      return { success: false, error: 'Authentication failed' };
+    }
   });
 
 export const verifyUser = actionClient.action<
@@ -203,7 +234,8 @@ export const verifyUser = actionClient.action<
         degenMode: user.degenMode,
       },
     };
-  } catch {
+  } catch (error) {
+    console.error('Error verifying user:', error);
     return { success: false, error: 'Authentication failed' };
   }
 });
@@ -223,7 +255,10 @@ export const getUserData = actionClient.action<ActionResponse<PrismaUser>>(
 
       const response = await getOrCreateUser({ userId: claims.userId });
       if (!response?.data?.success) {
-        return { success: false, error: response?.data?.error };
+        return {
+          success: false,
+          error: response?.data?.error || 'Failed to retrieve user data',
+        };
       }
 
       const user = response.data?.data;
@@ -232,7 +267,8 @@ export const getUserData = actionClient.action<ActionResponse<PrismaUser>>(
       }
 
       return { success: true, data: user };
-    } catch {
+    } catch (error) {
+      console.error('Error getting user data:', error);
       return { success: false, error: 'Authentication failed' };
     }
   },
@@ -241,29 +277,29 @@ export const getUserData = actionClient.action<ActionResponse<PrismaUser>>(
 export const syncEmbeddedWallets = actionClient.action<
   ActionResponse<{ wallets: EmbeddedWallet[] }>
 >(async () => {
-  const response = await getUserData();
-  if (!response?.data?.success || !response.data?.data) {
-    return { success: false, error: 'Local user not found in DB' };
-  }
-
-  const userData = response.data.data;
-
-  const privyUser = await PRIVY_SERVER_CLIENT.getUser(userData.privyId);
-
-  const embeddedWallets = privyUser.linkedAccounts.filter(
-    (acct): acct is WalletWithMetadata =>
-      acct.type === 'wallet' && acct.walletClientType === 'privy',
-  );
-
   try {
+    const response = await getUserData();
+    if (!response?.data?.success || !response.data?.data) {
+      return { success: false, error: 'Local user not found in DB' };
+    }
+
+    const userData = response.data.data;
+
+    const privyUser = await PRIVY_SERVER_CLIENT.getUser(userData.privyId);
+
+    const embeddedWallets = privyUser.linkedAccounts.filter(
+      (acct): acct is WalletWithMetadata =>
+        acct.type === 'wallet' && acct.walletClientType === 'privy',
+    );
+
     for (const w of embeddedWallets) {
       const pubkey = w.address;
       if (!pubkey) continue;
 
       await prisma.wallet.upsert({
         where: {
-          ownerId_publicKey: {
-            ownerId: userData.id,
+          userId_publicKey: {
+            userId: userData.id,
             publicKey: pubkey,
           },
         },
@@ -275,36 +311,43 @@ export const syncEmbeddedWallets = actionClient.action<
           encryptedPrivateKey: undefined, // This will handle a case where a user imports a wallet to privy
         },
         create: {
-          ownerId: userData.id,
+          userId: userData.id,
           name: 'Privy Embedded',
           publicKey: pubkey,
           walletSource: 'PRIVY',
-          chain: 'SOLANA',
+          chain: 'BSC',
           delegated: w.delegated ?? false,
           active: false,
-          encryptedPrivateKey: undefined,
+          encryptedPrivateKey: '',
         },
       });
     }
+
+    const userWallets = await prisma.wallet.findMany({
+      where: { userId: userData.id },
+      select: {
+        id: true,
+        userId: true,
+        publicKey: true,
+        walletSource: true,
+        delegated: true,
+        name: true,
+        chain: true,
+        createdAt: true,
+        updatedAt: true,
+        encryptedPrivateKey: true,
+      },
+    });
+    const typeWallets: EmbeddedWallet[] = userWallets.map((wallet) => ({
+      ...wallet,
+      userId: wallet.userId,
+    }));
+
+    return { success: true, data: { wallets: userWallets } };
   } catch (error) {
+    console.error('Error syncing embedded wallets:', error);
     return { success: false, error: 'Error retrieving updated user' };
   }
-
-  const userWallets = await prisma.wallet.findMany({
-    where: { ownerId: userData.id },
-    select: {
-      id: true,
-      publicKey: true,
-      walletSource: true,
-      delegated: true,
-      name: true,
-      ownerId: true,
-      active: true,
-      chain: true,
-    },
-  });
-
-  return { success: true, data: { wallets: userWallets } };
 });
 
 export const getPrivyClient = actionClient.action(
@@ -313,8 +356,9 @@ export const getPrivyClient = actionClient.action(
 
 export type UserUpdateData = {
   degenMode?: boolean;
-  referralCode?: string; // Add referralCode as an optional field
+  referralCode?: string;
 };
+
 export async function updateUser(data: UserUpdateData) {
   try {
     const authResult = await verifyUser();

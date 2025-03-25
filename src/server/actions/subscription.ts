@@ -11,7 +11,7 @@ import { searchWalletAssets } from '@/lib/solana/helius';
 import { canAffordSubscription, getSubPriceFloat } from '@/lib/utils';
 import { SOL_MINT } from '@/types/helius/portfolio';
 
-import { transferToken } from './ai';
+import { transferToken } from './ai-solana';
 import { verifyUser } from './user';
 
 const checkUserAuth = async () => {

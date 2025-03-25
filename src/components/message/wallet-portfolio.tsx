@@ -84,7 +84,7 @@ function TokenRow({
             </div>
             <div className="mt-1.5 flex items-baseline gap-2 text-xs sm:text-sm">
               <span className="font-medium text-muted-foreground">
-                {token.balance.toLocaleString(undefined, {
+                {(token.balance * 1e18).toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}{' '}
                 {token.symbol}
@@ -96,7 +96,10 @@ function TokenRow({
         {/* Price Info */}
         <div className="flex flex-col items-end gap-1.5">
           <div className="font-medium">
-            {formatNumber(token.balance * token.pricePerToken, 'currency')}
+            {formatNumber(
+              token.balance * 1e18 * token.pricePerToken,
+              'currency',
+            )}
           </div>
           {hasPrice && (
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground sm:text-xs">
@@ -115,6 +118,8 @@ export function WalletPortfolio({
   className,
   isLoading = false,
 }: WalletPortfolioProps) {
+  const decimal = 1e18;
+  console.log('data-------------->:', data);
   if (isLoading) {
     return (
       <Card
@@ -162,7 +167,7 @@ export function WalletPortfolio({
             </div>
           </div>
           <span className="text-base font-medium sm:text-lg">
-            {formatNumber(data.totalBalance, 'currency')}
+            {formatNumber(data.totalBalance * decimal, 'currency')}
           </span>
         </CardTitle>
       </CardHeader>

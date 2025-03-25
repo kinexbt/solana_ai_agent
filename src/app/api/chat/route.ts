@@ -26,7 +26,7 @@ import {
   getUnconfirmedConfirmationMessage,
   handleConfirmation,
 } from '@/lib/utils/ai';
-import { generateTitleFromUserMessage } from '@/server/actions/ai';
+import { generateTitleFromUserMessage } from '@/server/actions/ai-solana';
 import { getToolsFromOrchestrator } from '@/server/actions/orchestrator';
 import { verifyUser } from '@/server/actions/user';
 import {
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
 
   // Check for valid user session and required parameters
   const session = await verifyUser();
+  console.log(session);
   const userId = session?.data?.data?.id;
   const publicKey = session?.data?.data?.publicKey;
   const degenMode = session?.data?.data?.degenMode;
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
     const systemPrompt = [
       defaultSystemPrompt,
       `History of attachments: ${JSON.stringify(attachments)}`,
-      `User Solana wallet public key: ${publicKey}`,
+      `User wallet address: ${publicKey}`,
       `User ID: ${userId}`,
       `Conversation ID: ${conversationId}`,
       `Degen Mode: ${degenMode}`,

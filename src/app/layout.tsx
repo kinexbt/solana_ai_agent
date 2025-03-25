@@ -23,10 +23,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Neur',
-    default: 'Neur - The Intelligent Copilot for Solana',
+    template: '%s | Dextra',
+    default: 'Dextra - The Intelligent Copilot for BSC',
   },
-  description: 'The Intelligent Copilot elevating your Solana experience.',
+  description: 'The Intelligent Copilot elevating your BSC experience.',
 
   icons: {
     icon: '/logo.svg',
@@ -51,7 +51,13 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <main className="sticky bottom-0 overflow-hidden md:overflow-visible">
+            <main
+              className="sticky bottom-0 overflow-hidden md:overflow-visible"
+              style={{
+                borderRadius: '40px 0 40px 40px',
+                backgroundImage: 'linear-gradient(-45deg, #02081d, #000)',
+              }}
+            >
               {children}
               <Toaster />
             </main>

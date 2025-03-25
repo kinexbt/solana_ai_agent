@@ -5,7 +5,7 @@ import {
   Message,
 } from 'ai';
 
-import { convertUserResponseToBoolean } from '@/server/actions/ai';
+import { convertUserResponseToBoolean } from '@/server/actions/ai-solana';
 import { dbUpdateMessageToolInvocations } from '@/server/db/queries';
 import { ToolUpdate } from '@/types/util';
 

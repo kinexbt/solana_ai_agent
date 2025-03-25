@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { transferToken } from '@/server/actions/ai';
+import { transferToken } from '@/server/actions/ai-solana';
 import { FungibleToken } from '@/types/helius/fungibleToken';
 
 interface TokenTransferDialogProps {

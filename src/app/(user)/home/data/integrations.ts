@@ -12,8 +12,8 @@ export interface Integration {
 
 export const INTEGRATIONS: Integration[] = [
   {
-    icon: 'integrations/pump_fun.svg',
-    label: 'pump.fun',
+    icon: 'integrations/fourmeme.svg',
+    label: 'four.meme',
     description: 'Discover new tokens, launch tokens',
     theme: {
       primary: '#10B981', // Green
@@ -21,8 +21,8 @@ export const INTEGRATIONS: Integration[] = [
     },
   },
   {
-    icon: 'integrations/jupiter.svg',
-    label: 'Jupiter',
+    icon: 'integrations/pancake.svg',
+    label: 'Pancake',
     description: 'Swap tokens & DCA, Limit orders',
     theme: {
       primary: '#16A34A', // Green
@@ -30,8 +30,8 @@ export const INTEGRATIONS: Integration[] = [
     },
   },
   {
-    icon: 'integrations/magic_eden.svg',
-    label: 'Magic Eden',
+    icon: 'integrations/element_market.svg',
+    label: 'Element.market',
     description: 'Explore the best NFT collections',
     theme: {
       primary: '#9333EA', // Purple

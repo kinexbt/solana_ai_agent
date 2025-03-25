@@ -291,7 +291,7 @@ export function ConversationInput({
               onChat ? 'Send a message...' : 'Start a new conversation...'
             }
             className={cn(
-              'min-h-[110px] max-h-[350px] overflow-y-scroll w-full resize-none border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0',
+              'max-h-[350px] min-h-[110px] w-full resize-none overflow-y-scroll border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0',
               attachments.length > 0 ? 'rounded-t-none' : 'rounded-t-xl',
             )}
           />
@@ -299,7 +299,7 @@ export function ConversationInput({
           <div className="flex items-center justify-between border-t px-4 py-2">
             <div className="flex w-full flex-row items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                Type / to search for saved prompts (e.g. /Solana Price...)
+                Type / to search for saved prompts (e.g. /BNB Price...)
               </span>
               <span className="text-xs text-muted-foreground">
                 {value.length}/{MAX_CHARS}

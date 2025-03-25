@@ -3,7 +3,7 @@ import { useCallback, useEffect } from 'react';
 import { Conversation } from '@prisma/client';
 
 import { useConversationsStore } from '@/hooks/store/conversations';
-import { renameConversation } from '@/server/actions/ai';
+import { renameConversation } from '@/server/actions/ai-solana';
 
 async function fetchConversations(userId: string): Promise<Conversation[]> {
   const response = await fetch(`/api/conversations?userId=${userId}`);

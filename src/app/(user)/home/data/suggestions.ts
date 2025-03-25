@@ -8,22 +8,22 @@ export const SUGGESTIONS: Suggestion[] = [
   {
     id: 'launch-token',
     title: 'Launch a new token',
-    subtitle: 'deploy a new token on pump.fun',
+    subtitle: 'deploy a new token on four.meme',
   },
   {
-    id: 'swap-sol-usdc',
-    title: 'Swap 1 SOL for USDC',
-    subtitle: 'using Jupiter to swap on Solana',
+    id: 'swap-bnb-usdc',
+    title: 'Swap 1 BNB for USDC',
+    subtitle: 'using Pancake to swap on BSC',
   },
   {
-    id: 'solana-trends',
-    title: "What's trending on Solana?",
+    id: 'bsc-trends',
+    title: "What's trending on BSC?",
     subtitle: 'find the current market trends',
   },
   {
     id: 'price-feed',
-    title: "What's the price of SOL?",
-    subtitle: 'find the current price of SOL',
+    title: "What's the price of BNB?",
+    subtitle: 'find the current price of BNB',
   },
   {
     id: 'top-gainers-last-24h',

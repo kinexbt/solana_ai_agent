@@ -55,7 +55,7 @@ export const IntegrationsBackground = () => {
             className="transition-transform hover:scale-110"
           >
             <Image
-              src="/integrations/jupiter.svg"
+              src="/integrations/pancake.svg"
               alt="Jupiter"
               width={24}
               height={24}
@@ -74,7 +74,7 @@ export const IntegrationsBackground = () => {
             className="transition-transform hover:scale-110"
           >
             <Image
-              src="/integrations/magic_eden.svg"
+              src="/integrations/element_market.svg"
               alt="Magic Eden"
               width={24}
               height={24}
@@ -87,7 +87,7 @@ export const IntegrationsBackground = () => {
             className="transition-transform hover:scale-110"
           >
             <Image
-              src="/integrations/pump_fun.svg"
+              src="/integrations/fourmeme.svg"
               alt="Pump Fun"
               width={24}
               height={24}

@@ -6,7 +6,7 @@ import { Contract, JsonRpcProvider, ethers } from 'ethers';
 import { ERC20_ABI, ERC721_ABI } from '@/lib/utils/abis';
 
 const prisma = new PrismaClient();
-const provider = new JsonRpcProvider(process.env.ETH_RPC_URL);
+const provider = new JsonRpcProvider(process.env.BSC_RPC_URL);
 
 interface FungibleToken {
   symbol: string;

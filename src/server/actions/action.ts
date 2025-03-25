@@ -64,7 +64,7 @@ export async function processAction(action: ActionWithUser) {
     }
     const systemPrompt =
       defaultSystemPrompt +
-      `\n\nUser Solana wallet public key: ${activeWallet.publicKey}`;
+      `\n\nUser Wallet address: ${activeWallet.publicKey}`;
 
     // Run messages through orchestration
     const { toolsRequired, usage: orchestratorUsage } =

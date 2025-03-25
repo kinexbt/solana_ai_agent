@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 
-import { searchWalletAssets } from '@/lib/solana/helius';
-import { transformToPortfolio } from '@/types/helius/portfolio';
+import { searchWalletAssets } from '@/lib/bsc/ankr';
+import { transformToPortfolio } from '@/types/bsc/portfolioBsc';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ address: string }> },
+  { params }: { params: { address: string } },
 ) {
   try {
     const { address } = await params;

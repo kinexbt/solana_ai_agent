@@ -1,20 +1,22 @@
 'use server';
 
-import { PublicKey } from '@solana/web3.js';
 import { type CoreMessage, type CoreUserMessage, generateText } from 'ai';
-import { BaseWallet, SolanaAgentKit, WalletAdapter } from 'solana-agent-kit';
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import { defaultModel } from '@/ai/providers';
-import { RPC_URL } from '@/lib/constants';
+import { PrivyEmbeddedWallet } from '@/lib/bsc/PrivyEmbeddedWallet';
+import { decryptPrivateKey } from '@/lib/bsc/wallet-generator';
+import { BSC_RPC_URL } from '@/lib/constants';
 import prisma from '@/lib/prisma';
 import { ActionEmptyResponse, actionClient } from '@/lib/safe-action';
-import { PrivyEmbeddedWallet } from '@/lib/solana/PrivyEmbeddedWallet';
-import { decryptPrivateKey } from '@/lib/solana/wallet-generator';
-import { SOL_MINT } from '@/types/helius/portfolio';
-import { publicKeySchema } from '@/types/util';
+import { BNB_ADDRESS } from '@/types/bsc/portfolioBsc';
+import { addressSchema } from '@/types/util';
 
 import { getPrivyClient, verifyUser } from './user';
+
+// BSC Provider
+const provider = new ethers.JsonRpcProvider(BSC_RPC_URL);
 
 export async function generateTitleFromUserMessage({
   message,
@@ -23,11 +25,10 @@ export async function generateTitleFromUserMessage({
 }) {
   const { text: title } = await generateText({
     model: defaultModel,
-    system: `\n
-        - you will generate a short title based on the first message a user begins a conversation with
-        - ensure it is not more than 80 characters long
-        - the title should be a summary of the user's message
-        - do not use quotes or colons`,
+    system: `
+        - Generate a short title based on the user's first message.
+        - Keep it under 80 characters.
+        - Do not use quotes or colons.`,
     prompt: JSON.stringify(message),
   });
 
@@ -37,10 +38,9 @@ export async function generateTitleFromUserMessage({
 export async function convertUserResponseToBoolean(message: string) {
   const { text: rawBool } = await generateText({
     model: defaultModel,
-    system: `\n
-      - you will generate a boolean response based on a user's message content
-      - only return true or false
-      - if an explicit affirmative response cannot be determined, return false`,
+    system: `
+      - Return true or false based on the user's message.
+      - If an explicit affirmative response cannot be determined, return false.`,
     prompt: message,
   });
 
@@ -78,19 +78,13 @@ export const retrieveAgentKit = actionClient
   )
   .action(async ({ parsedInput }) => {
     const authResult = await verifyUser();
-
     const userId = authResult?.data?.data?.id;
 
     if (!userId) {
       return { success: false, error: 'UNAUTHORIZED', data: null };
     }
 
-    const result = await getAgentKit({
-      userId,
-      walletId: parsedInput?.walletId,
-    });
-
-    return result;
+    return await getAgentKit({ userId, walletId: parsedInput?.walletId });
   });
 
 export const getAgentKit = async ({
@@ -104,47 +98,37 @@ export const getAgentKit = async ({
     ? { ownerId: userId, id: walletId }
     : { ownerId: userId, active: true };
 
-  const wallet = await prisma.wallet.findFirst({
-    where: whereClause,
-  });
+  const wallet = await prisma.wallet.findFirst({ where: whereClause });
 
   if (!wallet) {
     return { success: false, error: 'WALLET_NOT_FOUND' };
   }
+  let walletInstance: ethers.Wallet | PrivyEmbeddedWallet;
 
-  let walletAdapter: WalletAdapter;
   if (wallet.encryptedPrivateKey) {
-    walletAdapter = new BaseWallet(
-      await decryptPrivateKey(wallet?.encryptedPrivateKey),
-    );
+    const decryptedKey = await decryptPrivateKey(wallet.encryptedPrivateKey);
+    walletInstance = new ethers.Wallet(decryptedKey, provider);
   } else {
     const privyClientResponse = await getPrivyClient();
     const privyClient = privyClientResponse?.data;
+
     if (!privyClient) {
       return { success: false, error: 'PRIVY_CLIENT_NOT_FOUND' };
     }
-    walletAdapter = new PrivyEmbeddedWallet(
-      privyClient,
-      new PublicKey(wallet.publicKey),
-    );
+
+    walletInstance = new PrivyEmbeddedWallet(privyClient, wallet.publicKey);
   }
 
-  const openaiKey = process.env.OPENAI_API_KEY!;
-  const agent = new SolanaAgentKit(walletAdapter, RPC_URL, {
-    OPENAI_API_KEY: openaiKey,
-    HELIUS_API_KEY: process.env.HELIUS_API_KEY!,
-  });
-
-  return { success: true, data: { agent } };
+  return { success: true, data: { walletInstance } };
 };
 
 export const transferToken = actionClient
   .schema(
     z.object({
       walletId: z.string(),
-      receiverAddress: publicKeySchema,
-      tokenAddress: publicKeySchema,
-      amount: z.number(),
+      receiverAddress: addressSchema,
+      tokenAddress: addressSchema,
+      amount: z.string(), // Using string for BigNumber compatibility
       tokenSymbol: z.string().describe('Symbol of the token to send'),
     }),
   )
@@ -153,18 +137,73 @@ export const transferToken = actionClient
       parsedInput;
 
     const agentResponse = await retrieveAgentKit({ walletId });
+    console.log('agentResponse--->', agentResponse);
 
     if (!agentResponse?.data?.success || !agentResponse?.data?.data) {
       return { success: false, error: 'AGENT_NOT_FOUND' };
     }
 
-    const agent = agentResponse.data.data.agent;
+    const walletInstance = agentResponse.data.data.walletInstance;
+    const amountInWei = ethers.parseUnits(amount, 18);
 
-    const signature = await agent.transfer(
-      new PublicKey(receiverAddress),
-      amount,
-      tokenAddress !== SOL_MINT ? new PublicKey(tokenAddress) : undefined,
-    );
+    const feeData = await provider.getFeeData();
+    const maxFeePerGas =
+      feeData.maxFeePerGas ?? ethers.parseUnits('10', 'gwei');
+    const maxPriorityFeePerGas =
+      feeData.maxPriorityFeePerGas ?? ethers.parseUnits('2', 'gwei');
+    const nonce = await provider.getTransactionCount(walletInstance.address);
 
-    return { success: true, data: { signature } };
+    if (walletInstance instanceof ethers.Wallet) {
+      // Case 1: Using ethers.js wallet (private key decrypted)
+      let tx;
+      if (tokenAddress === BNB_ADDRESS) {
+        tx = await walletInstance.sendTransaction({
+          to: receiverAddress,
+          value: amountInWei,
+          gasLimit: ethers.toBigInt(21000),
+          maxFeePerGas,
+          nonce,
+        });
+      } else {
+        const erc20Abi = [
+          'function transfer(address to, uint256 amount) public returns (bool)',
+        ];
+        const tokenContract = new ethers.Contract(
+          tokenAddress,
+          erc20Abi,
+          walletInstance,
+        );
+        tx = await tokenContract.transfer(receiverAddress, amountInWei);
+      }
+
+      await tx.wait();
+      const txHash = tx?.hash || tx;
+      return { success: true, data: { txHash: tx.hash } };
+    } else if (walletInstance instanceof PrivyEmbeddedWallet) {
+      // Case 2: Using PrivyEmbeddedWallet (browser-based signing)
+      let tx;
+      if (tokenAddress === BNB_ADDRESS) {
+        tx = await walletInstance.sendTransaction({
+          to: receiverAddress,
+          value: amountInWei.toString(), // Privy expects string format
+          gasLimit: '21000', // Standard gas limit for BNB transfer
+        });
+      } else {
+        tx = await walletInstance.sendTransaction({
+          to: tokenAddress,
+          value: '0', // ERC-20 token transfer doesn't send native BNB
+          data: new ethers.Interface([
+            'function transfer(address to, uint256 amount) public returns (bool)',
+          ]).encodeFunctionData('transfer', [
+            receiverAddress,
+            amountInWei.toString(),
+          ]),
+          gasLimit: '100000',
+        });
+      }
+
+      return { success: true, data: { txHash: tx } };
+    }
+
+    return { success: false, error: 'INVALID_WALLET_TYPE' };
   });

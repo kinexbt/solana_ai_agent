@@ -151,7 +151,7 @@ const Hero = ({ handleLogin }: { handleLogin: () => void }) => {
           <BlurFade delay={0.3} className="pointer-events-none select-none">
             <div className="inline-flex items-center rounded-full border border-primary/20 bg-muted/80 px-4 py-1.5 shadow-lg backdrop-blur-sm">
               <span className="text-sm font-medium text-primary">
-                ✨ Introducing Neur Agent
+                ✨ Introducing Dextra Agent
               </span>
             </div>
 
@@ -160,12 +160,12 @@ const Hero = ({ handleLogin }: { handleLogin: () => void }) => {
               <AnimatedShinyText className="inline">
                 <span>Intelligent Copilot</span>
               </AnimatedShinyText>{' '}
-              for <span>Solana</span>
+              for <span>BSC</span>
             </h1>
 
             <p className="mt-4 text-lg text-muted-foreground">
-              Elevate your Solana experience with AI-powered insights and
-              delegated actions
+              Elevate your BSC experience with AI-powered insights and delegated
+              actions
             </p>
           </BlurFade>
 
@@ -209,7 +209,7 @@ const Hero = ({ handleLogin }: { handleLogin: () => void }) => {
                 <div className="relative dark:hidden">
                   <Image
                     src="/product.png"
-                    alt="Neur AI Interface"
+                    alt="Dextra AI Interface"
                     width={1200}
                     height={675}
                     className="w-full rounded-2xl"
@@ -250,7 +250,7 @@ const features = [
     Icon: BrainCircuitIcon,
     name: 'Cutting-Edge AI Intelligence',
     description:
-      "Harness the power of the world's most advanced AI models, including Claude 3.5-Sonnet and GPT-4o, to intelligently analyze your Solana transactions in real-time, providing data-driven insights and seamless automated actions.",
+      "Harness the power of the world's most advanced AI models, including Claude 3.5-Sonnet and GPT-4o, to intelligently analyze your BSC transactions in real-time, providing data-driven insights and seamless automated actions.",
     className: 'col-span-1 sm:col-span-3 lg:col-span-2',
     background: (
       <div className="absolute inset-0 flex items-center justify-center opacity-20">
@@ -266,7 +266,7 @@ const features = [
     Icon: ZapIcon,
     name: 'Seamless Execution',
     description:
-      'Experience ultra-efficient, frictionless transactions powered by our deep Solana integration. Enjoy smooth, rapid execution without the need for compromise.',
+      'Experience ultra-efficient, frictionless transactions powered by our deep BSC integration. Enjoy smooth, rapid execution without the need for compromise.',
     className: 'col-span-1 sm:col-span-3 lg:col-span-1',
     background: (
       <Marquee
@@ -290,7 +290,7 @@ const features = [
     Icon: LinkIcon,
     name: 'Comprehensive Ecosystem Integration',
     description:
-      "Effortlessly connect with the full spectrum of Solana's protocols and services. Our platform is designed for seamless AI-powered collaboration, ensuring full synergy with the ecosystem.",
+      "Effortlessly connect with the full spectrum of BSC's protocols and services. Our platform is designed for seamless AI-powered collaboration, ensuring full synergy with the ecosystem.",
     className: 'col-span-1 sm:col-span-3 lg:col-span-3',
     background: <IntegrationsBackground />,
   },
@@ -298,7 +298,7 @@ const features = [
     Icon: GitHubLogoIcon,
     name: 'Open Source & Community Driven',
     description:
-      'Built with transparency and collaboration in mind. Our full-stack application is completely open source, community-driven, and welcomes contributions from developers worldwide to shape the future of Solana AI tools.',
+      'Built with transparency and collaboration in mind. Our full-stack application is completely open source, community-driven, and welcomes contributions from developers worldwide to shape the future of BSC AI tools.',
     className: 'col-span-1 sm:col-span-3 lg:col-span-1',
     background: (
       <div className="absolute inset-0 flex items-center justify-center opacity-20">
@@ -326,7 +326,7 @@ const Features = () => {
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-12 text-center sm:mb-16">
           <h2 className="mb-3 text-2xl font-bold tracking-tight sm:mb-4 sm:text-4xl">
-            Tailored for Solana
+            Tailored for BSC
           </h2>
           <p className="text-sm text-muted-foreground sm:text-base">
             Seamless integration with the world&apos;s leading AI-models
@@ -357,7 +357,7 @@ const Footer = () => {
         delay={0.5}
         className="flex items-center justify-center gap-3 text-sm text-muted-foreground"
       >
-        <p>© 2024 Neur. All rights reserved.</p>
+        <p>© 2025 Dextra. All rights reserved.</p>
         <span>|</span>
         <Link
           href="https://x.com/neur_sh"

@@ -212,10 +212,10 @@ export default function AccountContent() {
   };
 
   const privyWallets = embeddedWallets.filter(
-    (w: EmbeddedWallet) => w.walletSource === 'PRIVY' && w.chain === 'SOLANA',
+    (w: EmbeddedWallet) => w.walletSource === 'PRIVY' && w.chain === 'BSC',
   );
   const legacyWallets = embeddedWallets.filter(
-    (w: EmbeddedWallet) => w.walletSource === 'CUSTOM' && w.chain === 'SOLANA',
+    (w: EmbeddedWallet) => w.walletSource === 'CUSTOM' && w.chain === 'BSC',
   );
 
   const activeWallet = embeddedWallets.find((w) => w.active);

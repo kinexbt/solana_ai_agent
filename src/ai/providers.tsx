@@ -6,24 +6,14 @@ import { z } from 'zod';
 
 import { Card } from '@/components/ui/card';
 
-import { bscTools } from './bsc/bsc';
-import { bscTokenInfoTools } from './bsc/bscTokenPrice';
+import { bscTools } from './bsc/bscMethod';
+import { bscTokenInfoTools } from './bsc/bscTokenInfo';
 import { coinGeckoTools } from './bsc/coinGecko';
 import { bscDexscreenerTools } from './bsc/dexscreenerBsc';
 import { actionTools } from './generic/action';
 import { jinaTools } from './generic/jina';
 import { telegramTools } from './generic/telegram';
 import { utilTools } from './generic/util';
-import { birdeyeTools } from './solana/birdeye';
-import { bundleTools } from './solana/bundle';
-import { chartTools } from './solana/chart';
-import { cookietools } from './solana/cookie';
-import { definedTools } from './solana/defined-fi';
-import { dexscreenerTools } from './solana/dexscreener';
-import { jupiterTools } from './solana/jupiter';
-import { magicEdenTools } from './solana/magic-eden';
-import { pumpfunTools } from './solana/pumpfun';
-import { solanaTools } from './solana/solana';
 
 const usingAnthropic = !!process.env.ANTHROPIC_API_KEY;
 
@@ -60,9 +50,9 @@ export const orchestratorModel = openai('gpt-4o-mini');
 const openAiModel = openai(process.env.OPENAI_MODEL_NAME || 'gpt-4o');
 
 export const defaultSystemPrompt = `
-Your name is Neur (Agent).
-You are a specialized AI assistant for Solana blockchain, Binance Smart Chain (BSC), and DeFi operations, designed to provide secure, accurate, and user-friendly assistance.
-You may use your built-in model to perform general analysis and provide responses to user queries related to Solana, BSC, and DeFi.
+Your name is Dextra (Agent).
+You are a specialized AI assistant for Binance Smart Chain (BSC) and DeFi operations, designed to provide secure, accurate, and user-friendly assistance.
+You may use your built-in model to perform general analysis and provide responses to user queries related to BSC and DeFi.
 If you need to perform specific tasks you don't have built-in training for, you can use the available tools.
 
 Critical Rules:
@@ -71,7 +61,7 @@ Critical Rules:
 - If the previous tool result contains the key-value pair 'suppressFollowUp: true':
   Respond only with something like:
      - "Take a look at the results above"
-- Always use the \`searchToken\` tool to get the correct token mint first and ask for user confirmation.
+- Always use the \`searchToken\` tool to get the correct token address first and ask for user confirmation.
 - Do not attempt to call a tool that you have not been provided, let the user know that the requested action is not supported.
 
 Confirmation Handling:
@@ -107,11 +97,8 @@ Response Formatting:
 - Use an abbreviated format for transaction signatures
 
 Common knowledge:
-- { token: NEUR, description: The native token of Neur, twitter: @neur_sh, website: https://neur.sh/, address: 3N2ETvNpPNAxhcaXgkhKoY1yDnQfs41Wnxsx5qNJpump }
-- { user: toly, description: Co-Founder of Solana Labs, twitter: @aeyakovenko, wallet: toly.sol }
-- { user: gupta, description: Co-Founder of BSC Labs, twitter: @praveenguptaind, website: https://www.storyboard18.com wallet: gupta.bsc}\
-
-
+- { token: NEUR, description: The native token of Neur, twitter: @neur_sh, website: https://neur.sh/, address: 0x9C658Ca4ee589F82c53Ea80e408CE84E5c888FF2 }
+- { user: gupta, description: Co-Founder of BSC Labs, twitter: @praveenguptaind, website: https://www.storyboard18.com wallet: gupta.bsc}
 
 Realtime knowledge:
 - { approximateCurrentTime: ${new Date().toISOString()}}
@@ -158,23 +145,13 @@ export function DefaultToolResultRenderer({ result }: { result: unknown }) {
 
 export const defaultTools: Record<string, ToolConfig> = {
   ...actionTools,
-  ...solanaTools,
-  ...definedTools,
-  ...pumpfunTools,
-  ...jupiterTools,
-  ...dexscreenerTools,
-  ...magicEdenTools,
-  ...jinaTools,
-  ...utilTools,
-  ...chartTools,
-  ...telegramTools,
-  ...bundleTools,
-  ...birdeyeTools,
-  ...cookietools,
   ...bscTools,
   ...coinGeckoTools,
   ...bscDexscreenerTools,
   ...bscTokenInfoTools,
+  ...jinaTools,
+  ...utilTools,
+  ...telegramTools,
 };
 
 export function filterTools(
@@ -212,7 +189,7 @@ export const toolsets: Record<
   { tools: string[]; description: string }
 > = {
   coreTools: {
-    tools: ['actionTools', 'utilTools', 'jupiterTools', 'bscTokenInfoTools'],
+    tools: ['actionTools', 'utilTools', 'bscTokenInfoTools'],
     description:
       'Core utility tools for general operations, including actions, searching token info, utility functions.',
   },
@@ -222,20 +199,14 @@ export const toolsets: Record<
       'Web scraping and content extraction tools for reading web pages and extracting content.',
   },
   defiTools: {
-    tools: [
-      'solanaTools',
-      'bscTools',
-      'dexscreenerTools',
-      'bscDexscreenerTools',
-      'bscTokenInfoTools',
-    ],
+    tools: ['bscTools', 'bscDexscreenerTools', 'bscTokenInfoTools'],
     description:
-      'Tools for interacting with DeFi protocols on Solana and BSC, including swaps, market data, token information and details.',
+      'Tools for interacting with DeFi protocols on BSC, including swaps, market data, token information and details.',
   },
   traderTools: {
-    tools: ['birdeyeTools', 'coinGeckoTools'],
+    tools: ['coinGeckoTools'],
     description:
-      'Tools for analyzing and tracking traders and trades on Solana and BSC DEXes.',
+      'Tools for analyzing and tracking traders and trades on BSC DEXes.',
   },
   bscTools: {
     tools: [
@@ -247,43 +218,19 @@ export const toolsets: Record<
     description: 'Tools for interacting with BSC tokens and DEXs',
   },
   financeTools: {
-    tools: ['definedTools'],
+    tools: ['bscTokenInfoTools', 'coinGeckoTools'],
     description:
       'Tools for retrieving and applying logic to static financial data, including analyzing trending tokens.',
-  },
-  tokenLaunchTools: {
-    tools: ['pumpfunTools'],
-    description:
-      'Tools for launching tokens on PumpFun, including token deployment and management.',
-  },
-  chartTools: {
-    tools: ['chartTools'],
-    description: 'Tools for generating and displaying various types of charts.',
-  },
-  nftTools: {
-    tools: ['magicEdenTools'],
-    description:
-      'Tools for interacting with NFTs, including Magic Eden integrations.',
   },
   socialTools: {
     tools: ['telegramTools'],
     description:
       'Tools for interacting with Telegram for notifications and messaging.',
   },
-  cookieTools: {
-    tools: ['cookieTools'],
-    description:
-      'Tools for retrieving information about Solana AI Agents, and Tweets related to Agents.',
-  },
-  bundleTools: {
-    tools: ['bundleTools'],
-    description:
-      'Tools to analyze potential bundles and snipers for a contracts.',
-  },
 };
 
 export const orchestrationPrompt = `
-You are Neur, an AI assistant specialized in Solana blockchain, Binance Smart BlockChain and DeFi operations.
+You are Dextra, an AI assistant specialized in Binance Smart Chain (BSC) and DeFi operations.
 
 Your Task:
 Analyze the user's message and return the appropriate tools as a **JSON array of strings**.

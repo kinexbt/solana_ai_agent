@@ -34,7 +34,7 @@ import {
 } from '@/lib/solana/helius';
 import { cn } from '@/lib/utils';
 import { formatShortNumber, truncate } from '@/lib/utils/format';
-import { retrieveAgentKit } from '@/server/actions/ai';
+import { retrieveAgentKit } from '@/server/actions/ai-solana';
 import { transformToPortfolio } from '@/types/helius/portfolio';
 import { SOL_MINT } from '@/types/helius/portfolio';
 import { publicKeySchema } from '@/types/util';

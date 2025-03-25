@@ -14,13 +14,15 @@
     "dev:up-build": "docker compose up --build -d",
     "dev:up": "docker compose up -d",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,js,jsx}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,js,jsx}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,js,jsx}\"",
+    "seed": "node prisma/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.0",
     "@ai-sdk/openai": "^1.1.0",
     "@bonfida/spl-name-service": "^3.0.7",
     "@mem0/vercel-ai-provider": "^0.0.10",
+    "@metamask/detect-provider": "^2.0.0",
     "@prisma/client": "^6.2.1",
     "@privy-io/react-auth": "^1.99.1",
     "@privy-io/server-auth": "^1.18.1",

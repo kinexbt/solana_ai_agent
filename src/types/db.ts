@@ -11,14 +11,15 @@ import { User as _PrivyUser } from '@privy-io/react-auth';
 
 export type EmbeddedWallet = Pick<
   _PrismaWallet,
-  | 'id'
-  | 'ownerId'
   | 'name'
+  | 'id'
+  | 'userId'
   | 'publicKey'
+  | 'encryptedPrivateKey'
   | 'walletSource'
-  | 'active'
-  | 'delegated'
   | 'chain'
+  | 'createdAt'
+  | 'updatedAt'
 >;
 
 export type ConversationMeta = Pick<

@@ -13,8 +13,9 @@ const Icons = [
   'integrations/dexscreener.svg',
   'integrations/dialect.svg',
   'integrations/jupiter.svg',
-  'integrations/magic_eden.svg',
-  'integrations/pump_fun.svg',
+  'integrations/element_market.svg',
+  'integrations/fourmeme.svg',
+  'integrations/pancake.svg',
 ].map((icon) => {
   return <Image key={icon} src={icon} alt={icon} width={32} height={32} />;
 });

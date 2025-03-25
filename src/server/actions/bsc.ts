@@ -164,40 +164,6 @@ export async function getBSCTokenPrice(
       );
       // Continue to fallback method
     }
-
-    // Fallback to PancakeSwap API
-    // Note: PancakeSwap doesn't have a direct API for this, so in a real implementation
-    // you would need to query their router contract directly
-
-    // This is a placeholder implementation
-    const response = await fetch(
-      `https://api.pancakeswap.info/api/v2/tokens/${normalizedAddress}`,
-      { next: { revalidate: 60 } },
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch price data: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.data && data.data.price) {
-      return {
-        price: data.data.price,
-        priceUsd: data.data.price,
-        timestamp: Date.now(),
-        volume24h: data.data.volume || undefined,
-        // Only include these if showExtraInfo is true
-        ...(showExtraInfo
-          ? {
-              confidence: 0.8, // PancakeSwap API is less reliable
-              buyPrice: (parseFloat(data.data.price) * 1.01).toString(), // Estimated buy price (1% higher)
-              sellPrice: (parseFloat(data.data.price) * 0.99).toString(), // Estimated sell price (1% lower)
-            }
-          : {}),
-      };
-    }
-
     throw new Error('Price data not available from either source');
   } catch (error) {
     console.error('Error getting BSC token price:', error);

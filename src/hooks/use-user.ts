@@ -126,6 +126,8 @@ export function useUser(): NeurUserInterface {
   );
   const router = useRouter();
 
+  console.log(privyUser?.wallet, 'HHHHHHHHHHHHHHHHHHHHHHHH');
+
   // Load cached user data on component mount
   useEffect(() => {
     const cachedUser = loadFromCache();

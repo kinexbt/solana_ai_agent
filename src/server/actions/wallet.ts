@@ -1,8 +1,9 @@
 'use server';
 
-import { PublicKey } from '@solana/web3.js';
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
+import { BSC_RPC_URL } from '@/lib/constants';
 import prisma from '@/lib/prisma';
 import { ActionResponse, actionClient } from '@/lib/safe-action';
 import { decryptPrivateKey } from '@/lib/solana/wallet-generator';
@@ -10,6 +11,8 @@ import { EmbeddedWallet } from '@/types/db';
 
 import { retrieveAgentKit } from './ai';
 import { verifyUser } from './user';
+
+const provider = new ethers.JsonRpcProvider(BSC_RPC_URL);
 
 export const listEmbeddedWallets = actionClient.action<
   ActionResponse<EmbeddedWallet[]>
@@ -25,12 +28,12 @@ export const listEmbeddedWallets = actionClient.action<
   }
 
   const wallets = await prisma.wallet.findMany({
-    where: { ownerId: userId },
+    where: { userId: userId },
   });
 
   return {
     success: true,
-    data: wallets,
+    data: wallets || [],
   };
 });
 
@@ -46,7 +49,7 @@ export const getActiveWallet = actionClient.action<
 
   const wallet = await prisma.wallet.findFirst({
     where: {
-      ownerId: userId,
+      userId: userId,
       active: true,
     },
   });
@@ -73,7 +76,7 @@ export const setActiveWallet = actionClient
 
     const wallet = await prisma.wallet.findFirst({
       where: {
-        ownerId: userId,
+        userId: userId,
         publicKey,
       },
     });
@@ -84,7 +87,7 @@ export const setActiveWallet = actionClient
 
     const existingWallet = await prisma.wallet.findFirst({
       where: {
-        ownerId: userId,
+        userId: userId,
         active: true,
       },
     });
@@ -92,8 +95,8 @@ export const setActiveWallet = actionClient
     if (existingWallet) {
       await prisma.wallet.update({
         where: {
-          ownerId_publicKey: {
-            ownerId: userId,
+          userId_publicKey: {
+            userId: userId,
             publicKey: existingWallet.publicKey,
           },
         },
@@ -105,8 +108,8 @@ export const setActiveWallet = actionClient
 
     await prisma.wallet.update({
       where: {
-        ownerId_publicKey: {
-          ownerId: userId,
+        userId_publicKey: {
+          userId: userId,
           publicKey,
         },
       },
@@ -120,7 +123,7 @@ export const setActiveWallet = actionClient
     };
   });
 
-export const embeddedWalletSendSOL = actionClient
+export const embeddedWalletSendBNB = actionClient
   .schema(
     z.object({
       walletId: z.string(),
@@ -138,29 +141,54 @@ export const embeddedWalletSendSOL = actionClient
           error: 'Authentication failed',
         };
       }
+
+      // Fetch wallet from database
       const wallet = await prisma.wallet.findUnique({
         where: { id: walletId },
       });
-      if (!wallet || wallet.ownerId !== userId) {
+
+      if (!wallet || wallet.userId !== userId) {
         return {
           success: false,
           error: 'Wallet not found',
         };
       }
-      const agent = (await retrieveAgentKit({ walletId }))?.data?.data?.agent;
+
+      // Decrypt private key (Make sure `decryptPrivateKey` works for BSC)
+      let privateKey;
       try {
-        const signature = await agent?.transfer(
-          new PublicKey(recipientAddress),
-          amount,
-        );
+        privateKey = await decryptPrivateKey(wallet.encryptedPrivateKey);
+      } catch (error) {
+        return {
+          success: false,
+          error: 'Failed to decrypt private key',
+        };
+      }
+
+      // Create Wallet Signer
+      const signer = new ethers.Wallet(privateKey, provider);
+
+      try {
+        // Convert BNB amount to Wei
+        const value = ethers.parseEther(amount.toString());
+
+        // Create & send transaction
+        const tx = await signer.sendTransaction({
+          to: recipientAddress,
+          value: value,
+          gasLimit: ethers.toBigInt(21000), // Standard gas limit for BNB transfer
+        });
+
         return {
           success: true,
-          data: signature,
+          data: tx.hash, // Return transaction hash
         };
       } catch (error) {
         return {
           success: false,
-          error: 'Failed to send SOL (error: ' + error + ')',
+          error:
+            'Failed to send BNB: ' +
+            (error instanceof Error ? error.message : String(error)),
         };
       }
     },

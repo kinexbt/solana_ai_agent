@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { LaunchResult } from '@/components/message/pumpfun-launch';
 import { Card } from '@/components/ui/card';
-import { retrieveAgentKit } from '@/server/actions/ai';
+import { retrieveAgentKit } from '@/server/actions/ai-solana';
 
 export const pumpfunTools = {
   launchToken: {

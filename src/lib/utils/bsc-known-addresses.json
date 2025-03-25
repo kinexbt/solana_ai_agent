@@ -1,0 +1,47 @@
+{
+  "0x8894e0a0c962cb723c1976a4421c95949be2d4e3": "Binance Hot Wallet",
+  "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be": "Binance Hot Wallet 2",
+  "0xd551234ae421e3bcba99a0da6d736074f22192ff": "Binance Cold Wallet",
+  "0x564286362092d8e7936f0549571a803b203aaced": "Binance-Peg",
+
+  "0x28c6c06298d514db089934071355e5743bf21d60": "Binance-Peg: BUSD",
+  "0xe9e7cea3dedca5984780bafc599bd69add087d56": "BUSD Token",
+  "0x55d398326f99059ff775485246999027b3197955": "Binance-Peg: USDT",
+  "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d": "Binance-Peg: USDC",
+
+  "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c": "Wrapped BNB (WBNB)",
+  "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82": "PancakeSwap Token (CAKE)",
+
+  "0x10ed43c718714eb63d5aa57b78b54704e256024e": "PancakeSwap Router V2",
+  "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73": "PancakeSwap Factory V2",
+
+  "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063": "AnySwap Bridge",
+  "0xf977814e90da44bfa03b6295a0616a897441acec": "Binance Bridge",
+
+  "0xc30d1b0ce932c3dd3373a2c23ada4e9608caf345": "BSC: Validator",
+  "0x35552c16704d214347f29fa77f77da6d75d7c752": "BSC: Relayer",
+
+  "0x0000000000000000000000000000000000001000": "System Reward",
+  "0x0000000000000000000000000000000000001002": "BSC Validator Set",
+
+  "0xefc56627233b02ea95bae7e19f648d7380053371": "Biswap DEX",
+  "0xdacbd69bc9dd15e574a6b1048f9c115730ab4bc9": "1inch Router",
+
+  "0xd99d1c33f9fc3444f8101754abc46c52416550d1": "PancakeSwap Router (testnet)",
+  "0x9ac64cc6e4415144c455bd8e4837fea55603e5c3": "PancakeSwap Router V1",
+
+  "0x73feaa1ee314f8c655e354234017be2193c9e24e": "PancakeSwap: MasterChef",
+  "0xa5f8c5dbd5f286960b9d90548680ae8290b5ae91": "PancakeSwap: Prediction v2",
+
+  "0x1f1eb71e0c92d37bf9f01c62bc41f5553af4f611": "BscScan.com Token Tracker",
+  "0x1a1ec25dc08e98e5e93f1104b5e5cdd298707d31": "BscScan: Genesis Token",
+
+  "0xcf0febd3f17cef5b47b0cd257acf6025c5bff3b7": "Venus Protocol",
+  "0xecA88125a5ADbe82614ffC12D0DB554E2e2867C8": "BSC: Cross-Chain Bridge",
+
+  "0xdef1c0ded9bec7f1a1670819833240f027b25eff": "0x Exchange Proxy",
+  "0x7be8076f4ea4a4ad08075c2508e481d6c946d12b": "OpenSea Proxy",
+
+  "0x4170f3a262ec75d5d3d44f5bff23f6816b0de642": "TrustWallet: Token",
+  "0x128ba32Ec698610f2fF8f010A7b74e9DF0A2a585": "Liquid Staking"
+}

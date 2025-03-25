@@ -1,519 +1,593 @@
-import { JsonRpcApiProvider, ethers } from 'ethers';
-
-import { chunkArray } from '@/lib/utils';
-import rawKnownAddresses from '@/lib/utils/known-addresses.json';
-import { ERC20Token } from '@/types/ankr/fungibleToken';
-import { ERC721Token } from '@/types/ankr/nonFungibleToken';
+import { ethers } from 'ethers';
+import { bigint } from 'zod';
 
 import {
-  BSC_PROVIDER_URL,
-  BSC_SCAN_API_URL,
-  RPC_URL,
-  WEI_PER_BNB,
-} from '../constants';
+  getBep20Tokens,
+  getBnbBalance,
+  getBnbPrice,
+  getNfts,
+} from '@/lib/bsc/api';
+import { chunkArray } from '@/lib/utils';
+import rawKnownAddresses from '@/lib/utils/bsc-known-addresses.json';
+import { FungibleToken } from '@/types/bsc/fungibleToken';
+import { NonFungibleToken } from '@/types/bsc/nonFungibleToken';
 
-const provier = new ethers.JsonRpcProvider(RPC_URL);
+import { BSC_SCAN_API_KEY } from '../constants';
 
+// Standard ERC20 ABI for token interactions
+const ERC20_ABI = [
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
+  'function decimals() view returns (uint8)',
+  'function totalSupply() view returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint amount) returns (bool)',
+];
+
+// Standard ERC721 ABI for NFT interactions
+const ERC721_ABI = [
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
+  'function balanceOf(address owner) view returns (uint256)',
+  'function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)',
+  'function tokenURI(uint256 tokenId) view returns (string)',
+];
+
+// Constants for BSC
+export const RPC_URL = 'https://bsc-dataseed.binance.org/';
+export const BNB_CONTRACT = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // WBNB contract
+export const BUSD_CONTRACT = '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56'; // BUSD contract
+export const ETH_API_KEY = '22IJEHB9FGA6QPWQV4TNEQWWU4TQATZFU5';
 export interface Holder {
   owner: string;
   balance: number;
   classification?: string; // optional, assigned later
 }
 
-interface BscTokenInfo {
+interface TokenInfo {
   address: string;
   name: string;
   symbol: string;
   decimals: number;
   totalSupply: bigint;
-  owner?: string;
 }
-
-const ERC20_ABI = [
-  'function decimals() view returns (uint8)',
-  'function totalSupply() view returns (uint256)',
-  'function name() view returns (string)',
-  'function symbol() view returns (string)',
-  'function balanceOf(address owner) view returns (uint256)',
-];
-
-type AnkrMethod =
-  | 'eth_getBalance'
-  | 'eth_call'
-  | 'eth_getTransactionCount'
-  | 'eth_sendTransaction'
-  | 'eth_getBlockByHash'
-  | 'eth_getTransactionByHash'
-  | 'eth_getTransactionReceipt'
-  | 'searchAssets';
 
 const KNOWN_ADDRESSES: Record<string, string> = rawKnownAddresses as Record<
   string,
   string
 >;
 
-const fetchAnkr = async (method: AnkrMethod, params: any) => {
+// Initialize provider
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+
+// Generic function to handle BSC API requests
+const fetchBSC = async (method: string, params: any) => {
   try {
     const response = await fetch(RPC_URL, {
+      next: { revalidate: 5 },
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 'request-id',
         method: method,
-        params: params, // some methods require objects, some require arrays
+        params: params,
       }),
     });
 
-    // Check for rate limiting response
     if (response.status === 429) {
       throw new Error('RATE_LIMIT_EXCEEDED');
     }
 
     if (!response.ok) {
       throw new Error(
-        `BSC RPC error: ${response.status} ${response.statusText}`,
+        `BSC API error: ${response.status} ${response.statusText}`,
       );
     }
 
     const data = await response.json();
     if (data.error) {
       throw new Error(
-        `BSC RPC error: ${data.error.message || JSON.stringify(data.error)}`,
+        `BSC API error: ${data.error.message || JSON.stringify(data.error)}`,
       );
     }
 
-    return data.result;
+    return data;
   } catch (error) {
     if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') {
       return {
         status: 429,
-        error: 'BSC RPC request failed: Too many requests',
+        error: 'BSC API request failed: Too many requests',
       };
     }
     if (error instanceof Error) {
-      throw new Error(`BSC RPC request failed: ${error.message}`);
+      throw new Error(`BSC API request failed: ${error.message}`);
     }
-    throw new Error('BSC RPC request failed with unknown error');
+    throw new Error('BSC API request failed with unknown error');
   }
 };
 
-export const getBalance: (walletAddress: string) => Promise<number> = async (
-  walletAddress: string,
-) => {
-  const data = await fetchAnkr('eth_getBalance', [walletAddress, 'latest']);
-  return Number(data.result) / WEI_PER_BNB;
-};
-
-export const searchWalletAssetsBSC: (walletAddress: string) => Promise<{
-  fungibleTokens: ERC20Token[];
-  nonFungibleTokens: ERC721Token[];
-}> = async (ownerAddress: string) => {
+// Get BNB balance for a wallet
+export const getBalance = async (walletAddress: string): Promise<number> => {
   try {
-    const data = await fetchAnkr('searchAssets', {
-      ownerAddress: ownerAddress,
-      blockchain: 'bsc',
-      tokenType: 'all',
-      displayOptions: {
-        showNativeBalance: true,
-      },
-    });
-
-    if (!data.result?.assets) {
-      throw new Error('Invalid response format from Ankr API');
-    }
-
-    const items: (ERC20Token | ERC721Token)[] = data.result.assets;
-
-    let fungibleTokens: ERC20Token[] = items.filter(
-      (item): item is ERC20Token => item.interface === 'ERC20Token',
-    );
-
-    const nonFungibleTokens: ERC721Token[] = items.filter(
-      (item): item is ERC721Token =>
-        item.interface === 'ERC721' || item.interface === 'ERC1155',
-    );
-
-    let bnbBalance = data.result.nativeBalance.balance;
-    const bnbTotalSupply = data.result.nativeBalance.total_supply;
-    const address = data.result.nativeBalance.address;
-
-    const bnbToken: ERC20Token = {
-      interface: 'ERC20',
-      id: '0x0000000000000000000000000000000000000000',
-      name: 'BNB',
-      symbol: 'BNB',
-      decimals: 18,
-      totalSupply: bnbTotalSupply,
-      balanceOf(address: string): number {
-        return bnbBalance;
-      },
-      transfer(to: string, amount: number): boolean {
-        if (bnbBalance >= amount) {
-          bnbBalance -= amount; // Subtract from balance (simplified logic)
-          return true; // Return true to indicate the transfer was successful
-        }
-        return false; // If not enough balance, return false
-      },
-      priceInfo: {
-        price_per_token: data.result.nativeBalance.price_per_bnb,
-        total_price: data.result.nativeBalance.total_price,
-        currency: 'USD',
-      },
-    };
-
-    fungibleTokens.push(bnbToken);
-
-    return { fungibleTokens, nonFungibleTokens };
+    const balanceWei = await provider.getBalance(walletAddress);
+    return Number(ethers.formatEther(balanceWei)); // Convert from wei to BNB
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to search wallet assets: ${error.message}`);
+      throw new Error(`Failed to get balance: ${error.message}`);
     }
-    throw new Error('Failed to search wallet assets with unknown error');
+    throw new Error('Failed to get balance with unknown error');
   }
 };
 
-export async function getBscTokenInfo(
+// Get token info from contract address
+export const getTokenInfo = async (
   tokenAddress: string,
-  providerUrl: string,
-): Promise<any> {
-  // Create a provider connected to the BSC network
-  const provider = new ethers.JsonRpcProvider(providerUrl);
-
-  // Create a contract instance using the token address and ABI
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-
+): Promise<TokenInfo> => {
   try {
-    // Fetch token details
-    const name = await tokenContract.name();
-    const symbol = await tokenContract.symbol();
-    const decimals = await tokenContract.decimals();
-    const totalSupply = await tokenContract.totalSupply();
-
-    // You can also fetch the balance of a specific address if needed
-    // const balance = await tokenContract.balanceOf(someAddress);
-
-    // Return token info
-    return {
+    const tokenContract = new ethers.Contract(
       tokenAddress,
+      ERC20_ABI,
+      provider,
+    );
+    console.log('---->', tokenContract);
+    // Fetch token details with error handling for each method
+    const [name, symbol, decimals, totalSupply] = await Promise.all([
+      tokenContract.name().catch(() => 'Unknown'), // Fallback to 'Unknown' if name() fails
+      tokenContract.symbol().catch(() => 'Unknown'), // Fallback to 'Unknown' if symbol() fails
+      tokenContract.decimals().catch(() => 18), // Fallback to 18 if decimals() fails
+      tokenContract.totalSupply().catch(() => BigInt(0)), // Fallback to 0 if totalSupply() fails
+    ]);
+    return {
+      address: tokenAddress,
       name,
       symbol,
       decimals,
-      totalSupply: totalSupply.toString(), // Convert to string to handle large numbers
+      totalSupply,
     };
   } catch (error) {
+    console.error('Error in getTokenInfo:', error); // Log the error here
+    if (error instanceof Error) {
+      throw new Error(`Failed to get token info: ${error.message}`);
+    }
+    throw new Error('Failed to get token info with unknown error');
+  }
+};
+// Get token balance for a specific address
+export const getTokenBalance = async (
+  tokenAddress: string,
+  walletAddress: string,
+  decimals?: number,
+): Promise<number> => {
+  try {
+    const tokenContract = new ethers.Contract(
+      tokenAddress,
+      ERC20_ABI,
+      provider,
+    );
+    const balanceRaw = await tokenContract.balanceOf(walletAddress);
+
+    const tokenDecimals = decimals ?? (await tokenContract.decimals());
+
+    // Convert raw balance to human-readable format
+    return Number(ethers.formatUnits(balanceRaw, tokenDecimals));
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get token balance: ${error.message}`);
+    }
+    throw new Error('Failed to get token balance with unknown error');
+  }
+};
+
+// Search wallet assets (both fungible and non-fungible tokens)
+export const searchWalletAssets = async (
+  walletAddress: string,
+): Promise<{
+  fungibleTokens: FungibleToken[];
+  nonFungibleTokens: NonFungibleToken[];
+}> => {
+  try {
+    // Fetch BNB balance and price
+    const [bnbBalance, bnbPrice] = await Promise.all([
+      getBnbBalance(walletAddress),
+      getBnbPrice(),
+    ]);
+
+    let bep20Tokens: FungibleToken[] = [];
+
+    try {
+      bep20Tokens = await getBep20Tokens(walletAddress);
+    } catch (error) {
+      console.error('Error fetching BEP20 tokens:', error);
+    }
+    // Fetch NFTs
+    let nonFungibleTokens: NonFungibleToken[] = [];
+
+    try {
+      nonFungibleTokens = await getNfts(walletAddress);
+    } catch (error) {
+      console.error('Error fetching NFTs:', error);
+    }
+
+    // Add BNB as a fungible token
+    const fungibleTokens: FungibleToken[] = [
+      {
+        interface: 'FungibleAsset',
+        id: 'BNB',
+        content: {
+          $schema: 'https://schema.example.com/token1.0.json',
+          files: [
+            {
+              uri: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+              cdn_uri: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+              mime: 'image/png',
+            },
+          ],
+          metadata: {
+            description: 'Binance Coin',
+            name: 'Binance Coin',
+            symbol: 'BNB',
+            token_standard: 'Native Token',
+          },
+          links: {
+            image: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+          },
+        },
+        token_info: {
+          symbol: 'BNB',
+          balance: bnbBalance,
+          supply: 0,
+          decimals: 18,
+          token_program: '',
+          associated_token_address: '',
+          price_info: {
+            price_per_token: bnbPrice,
+            total_price: bnbBalance * bnbPrice,
+            currency: 'USD',
+          },
+        },
+      },
+      ...bep20Tokens, // Append BEP20 tokens if fetched
+    ];
+
+    // Check for Wrapped BNB (WBNB)
+    try {
+      const wbnbBalance = await getTokenBalance(BNB_CONTRACT, walletAddress);
+      if (wbnbBalance > 0) {
+        fungibleTokens.push({
+          interface: 'FungibleToken',
+          id: BNB_CONTRACT,
+          content: {
+            $schema: 'https://schema.example.com/token1.0.json',
+            files: [
+              {
+                uri: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+                cdn_uri:
+                  'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+                mime: 'image/png',
+              },
+            ],
+            metadata: {
+              description: 'Wrapped BNB',
+              name: 'Wrapped BNB',
+              symbol: 'WBNB',
+              token_standard: 'BEP20',
+            },
+            links: {
+              image: 'https://cryptologos.cc/logos/binance-coin-bnb-logo.png',
+            },
+          },
+          token_info: {
+            symbol: 'WBNB',
+            balance: wbnbBalance,
+            supply: 0,
+            decimals: 18,
+            token_program: '',
+            associated_token_address: '',
+            price_info: {
+              price_per_token: bnbPrice,
+              total_price: wbnbBalance * bnbPrice,
+              currency: 'USD',
+            },
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching WBNB balance:', error);
+    }
+
+    return { fungibleTokens, nonFungibleTokens };
+  } catch (error) {
+    console.error('searchWalletAssets error:', error);
     throw new Error(
-      `Error fetching token info for address: ${tokenAddress}. ${
+      `Failed to search wallet assets: ${
         error instanceof Error ? error.message : 'Unknown error'
       }`,
     );
   }
-}
-
-/**
- * Fetches all holders for a given mint (via "getTokenAccounts"),
- * returning a Map of `address -> Holder`.
- */
-export async function getTokenHolders(
-  tokenAddress: string, // BSC token address (ERC-20)
-  providerUrl: string, // BSC provider URL
-  holders: string[], // List of token holders' addresses
-): Promise<Map<string, Holder>> {
-  const provider = new ethers.JsonRpcProvider(providerUrl);
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-
-  const holderMap = new Map<string, Holder>();
-
-  for (let i = 0; i < holders.length; i++) {
-    const holderAddress = holders[i];
-
-    try {
-      // Fetch the balance for the holder
-      const balanceRaw = await tokenContract.balanceOf(holderAddress);
-      const decimals = await tokenContract.decimals();
-      const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
-
-      if (balance > 0) {
-        holderMap.set(holderAddress, {
-          owner: holderAddress,
-          balance,
-        });
-      }
-    } catch (error) {
-      console.error(
-        `Error fetching balance for holder ${holderAddress}:`,
-        error,
-      );
-    }
-  }
-
-  return holderMap;
-}
-
-export const getTokenAccountInfo = async (
-  address: string, // The user's wallet address
-  tokenAddress: string, // The ERC-20 token contract address
-  providerUrl: string, // The RPC provider URL for BSC
-) => {
-  // Create a provider connected to the BSC network
-  const provider = new ethers.JsonRpcProvider(providerUrl);
-
-  // Create a contract instance using the token address and ABI
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-
-  try {
-    // Fetch token balance for the given address
-    const balanceRaw = await tokenContract.balanceOf(address);
-    const decimals = await tokenContract.decimals();
-    const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
-
-    // Return the account information
-    return {
-      address,
-      balance,
-      tokenAddress,
-    };
-  } catch (error) {
-    console.error(
-      `Error fetching token account info for address ${address}:`,
-      error,
-    );
-    throw new Error('Failed to fetch token account info');
-  }
 };
 
-export async function getTopTokenHolders(
-  tokenInfo: BscTokenInfo,
-  apiKey: string, // BSCScan API key
-  providerUrl: string, // BSC provider URL
-): Promise<Map<string, Holder>> {
-  const provider = new ethers.JsonRpcProvider(providerUrl);
-  const tokenContract = new ethers.Contract(
-    tokenInfo.address,
-    ERC20_ABI,
-    provider,
-  );
-
-  // Step 1: Fetch top token holders from BSCScan
-  const response = await fetch(
-    `${BSC_SCAN_API_URL}?module=token&action=topholders&contractaddress=${tokenInfo.address}&apikey=${apiKey}`,
-  );
-
-  const data = await response.json();
-
-  if (data.status !== '1' || !data.result) {
-    throw new Error('No token holders found');
-  }
-
-  const topHolders = data.result.slice(0, 100); // Fetch top 100 holders, for example
-
-  // Step 2: Get the balances of these holders
-  const holderMap = new Map<string, Holder>();
-  for (const holder of topHolders) {
-    const holderAddress = holder.Account;
-
-    try {
-      const balanceRaw = await tokenContract.balanceOf(holderAddress);
-      const decimals = await tokenContract.decimals();
-      const balance = parseFloat(ethers.formatUnits(balanceRaw, decimals));
-
-      if (balance > 0) {
-        holderMap.set(holderAddress, {
-          owner: holderAddress,
-          balance,
-        });
-      }
-    } catch (error) {
-      console.error(
-        `Error fetching balance for holder ${holderAddress}:`,
-        error,
-      );
-    }
-  }
-
-  return holderMap;
+// Get token holders for a specific token
+export interface Holder {
+  owner: string;
+  balance: number;
 }
 
-/**
- * Fetches total number of holders returns -1 if there are more than 50k holders
- */
-export async function getTokenHolderCount(
-  tokenInfo: BscTokenInfo,
-  apiKey: string, // BSCScan API Key
-): Promise<number> {
-  const PAGE_SIZE = 1000;
-  let page = 1;
-  const allOwners = new Set<string>();
+export async function getTokenHolders(
+  tokenAddress: string,
+  decimals?: number,
+): Promise<Map<string, Holder>> {
+  try {
+    // Etherscan API URL for fetching token holders
+    const etherscanApiUrl = `https://api.etherscan.io/api?module=token&action=tokenholderlist&contractaddress=${tokenAddress}&page=1&offset=1000&apikey=${ETH_API_KEY}`;
 
-  while (page <= 100) {
-    // Fetch transaction logs from BSCScan to get token holders
-    const response = await fetch(
-      `${BSC_SCAN_API_URL}?module=account&action=tokentx&contractaddress=${tokenInfo.address}&page=${page}&offset=${PAGE_SIZE}&apikey=${apiKey}`,
-    );
-
-    const data = await response.json();
-
-    if (data.status !== '1' || !data.result || data.result.length === 0) {
-      break; // no more token transactions
+    // Fetch data from Etherscan API
+    const response = await fetch(etherscanApiUrl);
+    // Check if the response is okay
+    if (!response.ok) {
+      throw new Error('Failed to fetch data from Etherscan');
     }
 
-    data.result.forEach((tx: any) => {
-      // Add sender and receiver to the owners set
-      allOwners.add(tx.from);
-      allOwners.add(tx.to);
+    const data = await response.json();
+    console.log('data:', data);
+    if (data.status !== '1') {
+      throw new Error('Etherscan API error: ' + data.message);
+    }
+
+    // Create a map to store token holders and their balances
+    const holderMap = new Map<string, Holder>();
+
+    // Get token decimals either from the passed argument or fetch from token info
+    const tokenDecimals =
+      decimals ??
+      (await getTokenInfo(tokenAddress).then((info) => info.decimals));
+
+    // Loop through the holders data and store the balances
+    data.result.forEach((holder: any) => {
+      const owner = holder.Address;
+      const balanceRaw = BigInt(holder.TokenHolderQuantity || '0');
+      const balance = Number(ethers.formatUnits(balanceRaw, tokenDecimals));
+      console.log('balanceRaw:', balanceRaw);
+      console.log('tokenDecimals:', tokenDecimals);
+      holderMap.set(owner, {
+        owner,
+        balance,
+      });
     });
 
-    if (data.result.length < PAGE_SIZE) {
-      break; // reached the last page
+    return holderMap;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get token holders: ${error.message}`);
     }
-
-    page++;
+    throw new Error('Failed to get token holders with unknown error');
   }
-
-  // If there are more than 50,000 owners, return -1 (for large data sets)
-  if (allOwners.size > 50000) {
-    return -1;
-  }
-
-  return allOwners.size;
 }
 
-/**
- * Use "getMultipleAccounts" in a single RPC call for a list of addresses
- */
-export async function getMultipleAccountsInfoBSC(
-  addresses: string[],
-  apiKey: string,
-) {
-  const results = [];
-
-  // Loop over the addresses in batches (BSCScan supports max 100 addresses per API call)
-  for (let i = 0; i < addresses.length; i += 100) {
-    const batch = addresses.slice(i, i + 100);
-    const addressList = batch.join(',');
-
-    // Fetch the account info for multiple addresses (token balances)
-    const response = await fetch(
-      `${BSC_SCAN_API_URL}?module=account&action=balancemulti&address=${addressList}&tag=latest&apikey=${apiKey}`,
-    );
+// Get top token holders
+export async function getTopTokenHolders(
+  tokenAddress: string,
+  decimals?: number,
+): Promise<Map<string, Holder>> {
+  try {
+    // Get token decimals
+    const tokenDecimals =
+      decimals ??
+      (await getTokenInfo(tokenAddress).then((info) => info.decimals));
+    // BscScan API URL for fetching token transfers
+    const transfersUrl = `https://api.etherscan.io/v2/api?module=account&action=tokentx&contractaddress=${tokenAddress}&chainid=56&page=1&offset=10000&sort=desc&apikey=${ETH_API_KEY}`;
+    const response = await fetch(transfersUrl);
+    if (!response.ok) {
+      throw new Error('Failed to fetch transfer data from BscScan');
+    }
 
     const data = await response.json();
-
-    if (data.status !== '1' || !data.result) {
-      throw new Error('Error fetching account info from BSCScan');
+    if (data.status !== '1') {
+      throw new Error('BscScan API error: ' + data.message);
     }
 
-    // Add the result to the results array
-    results.push(...data.result);
-  }
+    // Create a map to track token holders
+    const holderMap = new Map<string, Holder>();
 
-  return results;
+    // Process transfer events to determine current holders
+    for (const tx of data.result) {
+      const from = tx.from.toLowerCase();
+      const to = tx.to.toLowerCase();
+      const value = BigInt(tx.value);
+
+      // Update sender balance
+      if (!holderMap.has(from)) {
+        holderMap.set(from, { owner: from, balance: 0 });
+      }
+
+      // Update receiver balance
+      if (!holderMap.has(to)) {
+        holderMap.set(to, { owner: to, balance: 0 });
+      }
+
+      const formattedValue = Number(ethers.formatUnits(value, tokenDecimals));
+      const fromHolder = holderMap.get(from)!;
+      fromHolder.balance -= formattedValue;
+
+      const toHolder = holderMap.get(to)!;
+      toHolder.balance += formattedValue;
+    }
+
+    // Filter out holders with zero or negative balance
+    // and sort by balance to get top holders
+    const sortedHolders = [...holderMap.entries()]
+      .filter(([_, holder]) => holder.balance > 0)
+      .sort(([, a], [, b]) => b.balance - a.balance);
+
+    return new Map(sortedHolders);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get BSC token holders: ${error.message}`);
+    }
+    throw new Error('Failed to get BSC token holders with unknown error');
+  }
 }
 
-/**
- * Classify a list of addresses (subset of holders).
- * - If address is in ACCOUNT_LABELS, use that.
- * - Else look at the account's `owner` program → PROGRAM_LABELS or fallback.
- * - Mutates the `Holder.classification` in `holderMap`.
- */
+// Get the total number of holders for a token
+export async function getTokenHolderCount(
+  tokenAddress: string,
+): Promise<number> {
+  try {
+    // In a real implementation, you would use a token indexer API that provides holder count
+    // This is a simplified example using a mock API call
+    const response = await fetch(
+      `https://api.etherscan.io/v2/api?chainid=1&module=token&action=tokenholdercount&contractaddress=${tokenAddress}&apikey=${ETH_API_KEY}`,
+    );
+    const data = await response.json();
+
+    return data.result || 0;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get token holder count: ${error.message}`);
+    }
+    throw new Error('Failed to get token holder count with unknown error');
+  }
+}
+
+// Classify addresses (determine if they're exchanges, contracts, etc.)
 async function classifyAddresses(
   holderMap: Map<string, Holder>,
   addresses: string[],
   chunkSize = 20,
-  apiKey: string, // Pass the BSCScan API key for API calls
 ) {
   const addressChunks = chunkArray(addresses, chunkSize);
 
   for (const chunk of addressChunks) {
-    const response = await getMultipleAccountsInfoBSC(chunk, apiKey);
-    if (!response || response.length === 0) {
-      continue;
-    }
+    // For each address in the chunk, check if it's a contract
+    const contractChecks = await Promise.all(
+      chunk.map((address) =>
+        provider.getCode(address).then((code) => code !== '0x'),
+      ),
+    );
 
     for (let i = 0; i < chunk.length; i++) {
       const addr = chunk[i];
-      const accInfo = response[i];
+      const isContract = contractChecks[i];
       const holder = holderMap.get(addr);
+
       if (!holder) continue;
 
-      // If address is in KNOWN_ADDRESSES
+      // If address is in KNOWN_ADDRESSES, use that classification
       if (addr in KNOWN_ADDRESSES) {
         holder.classification = KNOWN_ADDRESSES[addr];
         continue;
       }
 
-      // Check if the address is a contract or EOA (Externally Owned Account)
-      if (accInfo.balance && accInfo.balance > 0) {
-        // Address has a balance, possibly an EOA or token contract
-        // You can also perform other checks like token balances or contract types
-        holder.classification = 'EOA (Externally Owned Account)';
-      } else if (accInfo.is_contract && accInfo.is_contract === true) {
-        // Address is a contract
-        holder.classification = 'Smart Contract Address';
+      // Otherwise determine based on whether it's a contract
+      if (isContract) {
+        // We could further inspect the contract to determine its type
+        holder.classification = 'Contract';
       } else {
-        holder.classification = "Unknown or Doesn't Exist";
+        holder.classification = 'EOA (User)';
       }
     }
   }
 }
 
+// Get holders classification for a token
 export async function getHoldersClassification(
-  mint: string,
+  tokenAddress: string,
   limit: number = 10,
-  apiKey: string, // Pass your BSCScan API key
 ) {
-  // Assuming getMintAccountInfo is replaced with a BSC equivalent
-  const mintAccountInfo = await getMintAccountInfoBSC(mint, apiKey);
-  const totalSupply =
-    Number(mintAccountInfo.totalSupply) / 10 ** mintAccountInfo.decimals;
+  try {
+    const tokenInfo = await getTokenInfo(tokenAddress);
+    const totalSupply = Number(
+      ethers.formatUnits(tokenInfo.totalSupply, tokenInfo.decimals),
+    );
 
-  const topHolderMap = await getTopTokenHolders(
-    mintAccountInfo,
-    apiKey,
-    BSC_PROVIDER_URL,
-  );
-  const totalHolders = await getTokenHolderCount(mintAccountInfo, apiKey);
+    const topHolderMap = await getTopTokenHolders(tokenAddress, limit);
+    const totalHolders = await getTokenHolderCount(tokenAddress);
 
-  const sortedHolders = Array.from(topHolderMap.values()).sort((a, b) => {
-    return b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0;
-  });
+    const sortedHolders = Array.from(topHolderMap.values()).sort((a, b) => {
+      return b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0;
+    });
 
-  const topHolders = sortedHolders.slice(0, limit);
+    const topHolders = sortedHolders.slice(0, limit);
+    await classifyAddresses(
+      topHolderMap,
+      topHolders.map((h) => h.owner),
+      limit,
+    );
 
-  // Classify holders based on their address and API data
-  await classifyAddresses(
-    topHolderMap,
-    topHolders.map((h) => h.owner),
-    limit,
-    apiKey,
-  );
-
-  return {
-    totalHolders,
-    topHolders,
-    totalSupply,
-  };
-}
-
-// Replace with your BSC-specific mint info retrieval function (from BSCScan API)
-async function getMintAccountInfoBSC(
-  address: string,
-  apiKey: string,
-): Promise<BscTokenInfo> {
-  const response = await fetch(
-    `https://api.bscscan.com/api?module=token&action=tokeninfo&contractaddress=${address}&apikey=${apiKey}`,
-  );
-  const data = await response.json();
-
-  if (data.status !== '1') {
-    throw new Error(`Failed to fetch mint account info for: ${address}`);
+    return {
+      totalHolders,
+      topHolders,
+      totalSupply,
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get holders classification: ${error.message}`);
+    }
+    throw new Error('Failed to get holders classification with unknown error');
   }
-
-  return {
-    address,
-    name: data.result[0].name,
-    symbol: data.result[0].symbol,
-    decimals: parseInt(data.result[0].decimals),
-    totalSupply: BigInt(data.result[0].totalSupply),
-  };
 }
+
+// Helper functions
+
+// Get transaction history for a wallet
+export const getTransactionHistory = async (
+  walletAddress: string,
+  page: number = 1,
+  limit: number = 10,
+) => {
+  try {
+    // In a real implementation, you would use BSCScan API or another indexer
+    const response = await fetch(
+      `https://api.bscscan.com/api?module=account&action=txlist&address=${walletAddress}&page=${page}&offset=${limit}&sort=desc&apikey=${BSC_SCAN_API_KEY}`,
+    );
+    const data = await response.json();
+
+    if (data.status !== '1') {
+      throw new Error(data.message || 'Failed to get transaction history');
+    }
+
+    return data.result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get transaction history: ${error.message}`);
+    }
+    throw new Error('Failed to get transaction history with unknown error');
+  }
+};
+
+// Get token transaction history for a wallet
+export const getTokenTransactionHistory = async (
+  walletAddress: string,
+  tokenAddress?: string,
+  page: number = 1,
+  limit: number = 10,
+) => {
+  try {
+    // Build the API URL based on whether a token address is provided
+    let url = `https://api.bscscan.com/api?module=account&action=tokentx&address=${walletAddress}&page=${page}&offset=${limit}&sort=desc&apikey=YOUR_API_KEY`;
+
+    if (tokenAddress) {
+      url += `&contractaddress=${tokenAddress}`;
+    }
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status !== '1') {
+      throw new Error(
+        data.message || 'Failed to get token transaction history',
+      );
+    }
+
+    return data.result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to get token transaction history: ${error.message}`,
+      );
+    }
+    throw new Error(
+      'Failed to get token transaction history with unknown error',
+    );
+  }
+};

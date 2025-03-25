@@ -12,7 +12,7 @@ export async function GET(
     return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
   }
   try {
-    const accounts = await prisma.ethereumWallet.findMany({
+    const accounts = await prisma.wallet.findMany({
       where: { userId: userId },
       select: { id: true, name: true, publicKey: true, balance: true },
     });

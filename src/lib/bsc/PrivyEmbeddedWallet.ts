@@ -6,7 +6,7 @@ import {
 } from '@privy-io/server-auth';
 import { Wallet } from 'ethers';
 
-export class PrivyBscWallet {
+export class PrivyEmbeddedWallet {
   private privyClient: PrivyClient;
   public address: string;
 
