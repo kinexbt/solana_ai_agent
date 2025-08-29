@@ -1,26 +1,10 @@
 # Neur
 
-> The Intelligent Copilot for Solana
-
-Neur is an **open-source**, ai agent that brings together the power of LLM models and blockchain technology. Designed for the [Solana](https://solana.com/) ecosystem, Neur enables seamless interactions with DeFi protocols, NFTs, and much more.
-
-[![GitHub stars](https://img.shields.io/github/stars/NeurProjects/neur-app?style=flat-square)](https://github.com/NeurProjects/neur-app/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/NeurProjects/neur-app/blob/main/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/NeurProjects/neur-app?style=flat-square)](https://github.com/NeurProjects/neur-app/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/NeurProjects/neur-app?style=flat-square)](https://github.com/NeurProjects/neur-app/pulls)
-[![Last commit](https://img.shields.io/github/last-commit/NeurProjects/neur-app?style=flat-square)](https://github.com/NeurProjects/neur-app/commits/main)
-[![Contributors](https://img.shields.io/github/contributors/NeurProjects/neur-app?style=flat-square)](https://github.com/NeurProjects/neur-app/graphs/contributors)
-
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)
-![Solana](https://img.shields.io/badge/Solana-14F195?style=flat-square&logo=solana&logoColor=white&color=black)
-
-![Product Demo](./public/product.png)
-
-# Solana AI Agent 🤖
+# Solana AI Agent - Neur 🤖
 
 An intelligent autonomous agent built on Solana blockchain that leverages AI to execute smart contract interactions, analyze on-chain data, and automate complex DeFi operations with human-like decision making.
+
+![Product Demo](./public/product.png)
 
 ## Features
 
