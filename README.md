@@ -1,5 +1,3 @@
-# Neur
-
 # Solana AI Agent - Neur 🤖
 
 An intelligent autonomous agent built on Solana blockchain that leverages AI to execute smart contract interactions, analyze on-chain data, and automate complex DeFi operations with human-like decision making.
